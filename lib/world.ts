@@ -43,13 +43,12 @@ export function createWorld(
   sunlight.position.set(-12, 25, 12);
   scene.add(sunlight);
   const camera = new THREE.OrthographicCamera(-25, 25, 20, -20, 0.1, 200);
-  camera.position.set(12, 38, 50);
-  camera.lookAt(0, 0, -2);
+  camera.position.set(36, 33, 44);
+  camera.lookAt(0, 0, 0);
   camera.updateMatrixWorld();
   const boxGeometry = new THREE.BoxGeometry(1, 1, 1);
   const material = new THREE.MeshLambertMaterial();
   const blocks: Block[] = [];
-  let placement: 'world' | 'stable' | 'infield' = 'world';
   function box(
     x: number,
     y: number,
@@ -62,11 +61,7 @@ export function createWorld(
     rotation = 0,
   ) {
     const object = new THREE.Object3D();
-    if (placement === 'stable') {
-      object.position.set(z * 0.7, y, -(x + 7.5) - 13);
-      [w, d] = [d * 0.7, w];
-    } else if (placement === 'infield') object.position.set(x - 5, y, z + 3);
-    else object.position.set(x, y, z);
+    object.position.set(x, y, z);
     object.scale.set(w, h, d);
     object.rotation.y = rotation;
     parent?.add(object);
@@ -74,14 +69,14 @@ export function createWorld(
     return object;
   }
 
-  box(0, -0.65, -2, 20, 1.3, 34, '#99866b');
-  box(0, -0.05, -2, 20, 0.35, 34, '#8c9d69');
-  box(0, -1.28, -2, 19.5, 0.22, 33.5, '#776b56');
-  box(8.8, 0.18, -5, 1.2, 0.08, 17.4, '#c5bda5');
-  box(6.4, 0.19, 3, 5, 0.08, 1.6, '#c5bda5');
-  placement = 'stable';
+  box(0, -0.65, 0, 25, 1.3, 27, '#99866b');
+  box(0, -0.05, 0, 25, 0.35, 27, '#8c9d69');
+  box(0, -1.28, 0, 24.5, 0.22, 26.5, '#776b56');
   box(-7.5, 0.18, 0, 6.9, 0.1, 22, '#c6bd9e');
-  box(-7.5, 0.2, 0, 1.55, 0.06, 24.3, '#aba798');
+  box(-7.5, 0.2, 0, 1.55, 0.06, 22.8, '#aba798');
+  box(-5, 0.18, 11.3, 6.5, 0.08, 1.5, '#c5bda5');
+  box(-2.5, 0.18, 5.65, 1.4, 0.08, 12.6, '#c5bda5');
+  box(-0.6, 0.19, 0, 5, 0.08, 1.6, '#c5bda5');
   // A single long cream stable, with eight bays west and seven east of its aisle.
   box(-10.65, 1.45, 0, 0.18, 2.6, 21.2, '#cac9ad');
   box(-4.35, 0.8, 0, 0.18, 1.3, 21.2, '#c4c5a7');
@@ -100,7 +95,7 @@ export function createWorld(
     ctx.fillText(String(i + 1).padStart(2, '0'), i * 64 + 32, 32);
   const labelTexture = new THREE.CanvasTexture(labelCanvas);
   for (let id = 0; id < STALL_CAPACITY; id++) {
-    const p = { x: id < 8 ? -9.3 : -5.7, z: stall(id).x / 0.7 },
+    const p = stall(id),
       left = id < 8,
       wallX = left ? -10.55 : -4.45,
       frontX = left ? -8.25 : -6.75;
@@ -123,8 +118,8 @@ export function createWorld(
         side: THREE.DoubleSide,
       }),
     );
-    plate.position.set(p.z * 0.7, 2.6, -(frontX + 7.5) - 13);
-    plate.rotation.y = 0;
+    plate.position.set(frontX, 2.6, p.z);
+    plate.rotation.y = Math.PI / 2;
     scene.add(plate);
   }
   // Gray-brown tiled gable, with the camera-facing half cut away to expose the bays.
@@ -140,13 +135,6 @@ export function createWorld(
       3,
     ),
   );
-  const roofPositions = roofGeo.getAttribute('position');
-  for (let i = 0; i < roofPositions.count; i++) {
-    const x = roofPositions.getX(i),
-      z = roofPositions.getZ(i);
-    roofPositions.setX(i, z * 0.7);
-    roofPositions.setZ(i, -(x + 7.5) - 13);
-  }
   roofGeo.computeVertexNormals();
   scene.add(
     new THREE.Mesh(
@@ -159,14 +147,13 @@ export function createWorld(
   );
   box(-7.5, 4.04, 0, 0.2, 0.15, 22.3, '#555b59');
   for (let i = 0; i < 43; i++)
-    box(-9.25, 3.47, -10.8 + i * 0.51, 3.6, 0.045, 0.06, '#959084').rotation.x =
+    box(-9.25, 3.47, -10.8 + i * 0.51, 3.6, 0.045, 0.06, '#959084').rotation.z =
       0.305;
   // Small roof ventilators belong to the same building.
   for (const z of [-6, 3]) {
     box(-8.2, 3.98, z, 0.85, 0.55, 1.6, '#c2bda9');
     box(-8.2, 4.31, z, 1.15, 0.14, 1.95, '#666d69');
   }
-  placement = 'world';
   function fenceSegment(a: THREE.Vector2, b: THREE.Vector2) {
     const dx = b.x - a.x,
       dz = b.y - a.y,
@@ -219,7 +206,7 @@ export function createWorld(
   // The infield is the sole grazing area; both railings open at the stable crossing.
   for (const offset of [-1.25, 1.25])
     for (let i = 0; i < 96; i++) {
-      if (i >= 46 && i <= 49) continue;
+      if (i < 2 || i > 93) continue;
       const points = [i, i + 1].map((n) => {
         const angle = Math.PI + (n / 96) * TAU,
           p = trackPoint(angle, 1),
@@ -234,7 +221,6 @@ export function createWorld(
       });
       fenceSegment(points[0], points[1]);
     }
-  placement = 'infield';
   box(5, 0.16, 0, 7.8, 0.055, 11.3, '#93a56e');
   box(7, 0.45, 6.4, 2, 0.5, 0.7, '#92988a');
   box(7, 0.72, 6.4, 1.7, 0.04, 0.47, '#84aeb0');
@@ -244,12 +230,13 @@ export function createWorld(
       flatShading: true,
     });
   const treePositions = [
-    [-8.5, -17.5],
-    [8.5, -17.5],
-    [-8.5, 13.5],
-    [8.5, 13.5],
+    [-11.5, -11.9],
+    [-11.5, 11.9],
+    [11.3, -11.7],
+    [11.4, 11.7],
+    [1.4, 11.8],
+    [2, -11.9],
   ];
-  placement = 'world';
   const foliage = new THREE.InstancedMesh(
     leafGeo,
     leafMat,
@@ -264,13 +251,11 @@ export function createWorld(
     foliage.setMatrixAt(i, dummy.matrix);
   });
   scene.add(foliage);
-  placement = 'infield';
   for (let i = 0; i < 140; i++) {
     const x = 1.5 + (Math.sin(i * 17.17) * 0.5 + 0.5) * 7,
       z = -5.7 + (Math.sin(i * 39.81) * 0.5 + 0.5) * 11.4;
     box(x, 0.25, z, 0.08, 0.2, 0.08, i % 5 ? '#7b925c' : '#c3b583');
   }
-  placement = 'world';
   const staticMesh = new THREE.InstancedMesh(
     boxGeometry,
     material,
@@ -371,9 +356,9 @@ export function createWorld(
   // Shared particle buffers keep precipitation cheap on mobile; no flashing lightning.
   const particlePositions = new Float32Array(240 * 6);
   for (let i = 0; i < 240; i++) {
-    const x = Math.sin(i * 19.7) * 10,
+    const x = Math.sin(i * 19.7) * 12,
       y = (i * 1.73) % 12,
-      z = Math.cos(i * 7.3) * 17 - 2;
+      z = Math.cos(i * 7.3) * 13;
     particlePositions.set([x, y, z, x, y - 0.4, z], i * 6);
   }
   const rainGeometry = new THREE.BufferGeometry();
@@ -407,7 +392,7 @@ export function createWorld(
   const lamps = new THREE.Group();
   for (const z of [-7, 7]) {
     const lamp = new THREE.PointLight('#ffcc7b', 10, 7, 2);
-    lamp.position.set(z * 0.7, 2.6, -13);
+    lamp.position.set(-7.5, 2.6, z);
     lamps.add(lamp);
   }
   scene.add(lamps);
@@ -453,9 +438,9 @@ export function createWorld(
   applyEnvironment(environment);
   // Derive the fitted view from projected bounds; camera orientation never changes.
   const bounds = [];
-  for (const x of [-10, 10])
+  for (const x of [-12.5, 12.5])
     for (const y of [-1.5, 4.5])
-      for (const z of [-19, 15])
+      for (const z of [-13.5, 13.5])
         bounds.push(
           new THREE.Vector3(x, y, z).applyMatrix4(camera.matrixWorldInverse),
         );

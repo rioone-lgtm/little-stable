@@ -13,7 +13,7 @@ export type Horse = Point & {
   route: Point[];
   visits: Record<Activity, number>;
 };
-export const TRACK = { x: 0, z: 3, radius: 6, straight: 4 };
+export const TRACK = { x: 5, z: 0, radius: 6, straight: 4 };
 export const STALL_CAPACITY = 15;
 export const TAU = Math.PI * 2;
 export function trackPoint(angle: number, id = 0): Point {
@@ -21,32 +21,29 @@ export function trackPoint(angle: number, id = 0): Point {
     a = TRACK.straight;
   const perimeter = 4 * a + TAU * r;
   let d = (((((angle - Math.PI) % TAU) + TAU) % TAU) / TAU) * perimeter;
-  if (d < a) return { x: TRACK.x - r, z: TRACK.z - d };
+  if (d < a) return { x: TRACK.x - r, z: -d };
   d -= a;
   if (d < Math.PI * r) {
     const t = Math.PI + d / r;
-    return { x: TRACK.x + r * Math.cos(t), z: TRACK.z - a + r * Math.sin(t) };
+    return { x: TRACK.x + r * Math.cos(t), z: -a + r * Math.sin(t) };
   }
   d -= Math.PI * r;
-  if (d < 2 * a) return { x: TRACK.x + r, z: TRACK.z - a + d };
+  if (d < 2 * a) return { x: TRACK.x + r, z: -a + d };
   d -= 2 * a;
   if (d < Math.PI * r) {
     const t = d / r;
-    return { x: TRACK.x + r * Math.cos(t), z: TRACK.z + a + r * Math.sin(t) };
+    return { x: TRACK.x + r * Math.cos(t), z: a + r * Math.sin(t) };
   }
   d -= Math.PI * r;
-  return { x: TRACK.x - r, z: TRACK.z + a - d };
+  return { x: TRACK.x - r, z: a - d };
 }
 export function stall(id: number): Point {
   if (!Number.isInteger(id) || id < 0 || id >= STALL_CAPACITY)
     throw new RangeError('Unknown stall');
-  return {
-    x: (-9.1 + (id < 8 ? id : id - 8) * 2.6) * 0.7,
-    z: id < 8 ? -11.2 : -14.8,
-  };
+  return { x: id < 8 ? -9.3 : -5.7, z: -9.1 + (id < 8 ? id : id - 8) * 2.6 };
 }
 export function stallAisle(id: number): Point {
-  return { x: stall(id).x, z: -13 };
+  return { x: -7.5, z: stall(id).z };
 }
 export function createSimulation(seed = 9817, initialHour = 14) {
   let hour = initialHour;
@@ -89,8 +86,8 @@ export function createSimulation(seed = 9817, initialHour = 14) {
     return value / 4294967296;
   };
   const pasture = (): Point => ({
-    x: -3 + random() * 6,
-    z: -2 + random() * 10,
+    x: 2 + random() * 6,
+    z: -5 + random() * 10,
   });
   const horses: Horse[] = Array.from({ length: 10 }, (_, id) => {
     const state: Activity =
@@ -117,7 +114,7 @@ export function createSimulation(seed = 9817, initialHour = 14) {
               : id < 7
                 ? 'graze'
                 : 'run';
-    const trackAngle = (id % 5) * 1.1;
+    const trackAngle = Math.PI + (id % 5) * 1.1;
     const p =
       state === 'rest'
         ? stall(id)
@@ -130,11 +127,16 @@ export function createSimulation(seed = 9817, initialHour = 14) {
       state,
       destination: state,
       zone: state,
-      angle: state === 'rest' ? (id < 8 ? Math.PI : 0) : random() * TAU,
+      angle:
+        state === 'rest'
+          ? id < 8
+            ? Math.PI / 2
+            : -Math.PI / 2
+          : random() * TAU,
       phase: random() * TAU,
       timer: duration(id, state) * (1 + random()),
       trackAngle,
-      lapEnd: TAU * 2,
+      lapEnd: Math.PI + TAU * 2,
       route: [],
       visits: {
         rest: state === 'rest' ? 1 : 0,
@@ -149,18 +151,23 @@ export function createSimulation(seed = 9817, initialHour = 14) {
     h.visits[h.state]++;
     h.timer = duration(h.id, h.state) * (1 + random());
     if (h.state === 'run') {
-      h.trackAngle = 0;
-      h.lapEnd = TAU * (1 + Math.floor(random() * 2));
+      h.trackAngle = Math.PI;
+      h.lapEnd = Math.PI + TAU * (1 + Math.floor(random() * 2));
     }
-    if (h.state === 'rest') h.angle = h.id < 8 ? Math.PI : 0;
+    if (h.state === 'rest') h.angle = h.id < 8 ? Math.PI / 2 : -Math.PI / 2;
   };
   const travel = (h: Horse, destination: Activity) => {
     // One central aisle serves 15 dedicated bays. Both track rails have a gate at z=0.
-    const junction = { x: 8.8, z: 3 },
-      gate = { x: 4, z: 3 };
+    const junction = { x: -2.5, z: 0 },
+      gate = { x: 1, z: 0 };
     const exit: Point[] =
       h.zone === 'rest'
-        ? [stallAisle(h.id), { x: 7.91, z: -13 }, { x: 8.8, z: -13 }, junction]
+        ? [
+            stallAisle(h.id),
+            { x: -7.5, z: 11.3 },
+            { x: -2.5, z: 11.3 },
+            junction,
+          ]
         : h.zone === 'graze'
           ? [gate, junction]
           : [junction];
@@ -169,10 +176,10 @@ export function createSimulation(seed = 9817, initialHour = 14) {
         ? stall(h.id)
         : destination === 'graze'
           ? pasture()
-          : trackPoint(0, h.id);
+          : trackPoint(Math.PI, h.id);
     const entry: Point[] =
       destination === 'rest'
-        ? [{ x: 8.8, z: -13 }, { x: 7.91, z: -13 }, stallAisle(h.id), target]
+        ? [{ x: -2.5, z: 11.3 }, { x: -7.5, z: 11.3 }, stallAisle(h.id), target]
         : destination === 'graze'
           ? [gate, target]
           : [target];
@@ -245,7 +252,8 @@ export function createSimulation(seed = 9817, initialHour = 14) {
         for (const h of horses) {
           h.timer = Math.min(h.timer, 2 + h.id);
           if (h.state === 'run')
-            h.lapEnd = (Math.floor(h.trackAngle / TAU) + 1) * TAU;
+            h.lapEnd =
+              Math.PI + (Math.floor((h.trackAngle - Math.PI) / TAU) + 1) * TAU;
         }
     },
     counts: () =>
