@@ -1,3 +1,4 @@
+import { zoomAt, clampView, type Viewport } from './viewport';
 import { environmentAt, type Environment } from './environment';
 import * as THREE from 'three';
 import {
@@ -10,6 +11,8 @@ import {
 } from './simulation';
 
 export type StableWorld = {
+  zoomBy(factor: number): void;
+  resetZoom(): void;
   setEnvironment(value: Environment): void;
   setPaused(value: boolean): void;
   setSpeed(value: number): void;
@@ -40,11 +43,13 @@ export function createWorld(
   sunlight.position.set(-12, 25, 12);
   scene.add(sunlight);
   const camera = new THREE.OrthographicCamera(-25, 25, 20, -20, 0.1, 200);
-  camera.position.set(36, 33, 44);
-  camera.lookAt(0, 0, 0);
+  camera.position.set(12, 38, 50);
+  camera.lookAt(0, 0, -2);
+  camera.updateMatrixWorld();
   const boxGeometry = new THREE.BoxGeometry(1, 1, 1);
   const material = new THREE.MeshLambertMaterial();
   const blocks: Block[] = [];
+  let placement: 'world' | 'stable' | 'infield' = 'world';
   function box(
     x: number,
     y: number,
@@ -57,7 +62,11 @@ export function createWorld(
     rotation = 0,
   ) {
     const object = new THREE.Object3D();
-    object.position.set(x, y, z);
+    if (placement === 'stable') {
+      object.position.set(z * 0.7, y, -(x + 7.5) - 13);
+      [w, d] = [d * 0.7, w];
+    } else if (placement === 'infield') object.position.set(x - 5, y, z + 3);
+    else object.position.set(x, y, z);
     object.scale.set(w, h, d);
     object.rotation.y = rotation;
     parent?.add(object);
@@ -65,14 +74,14 @@ export function createWorld(
     return object;
   }
 
-  box(0, -0.65, 0, 25, 1.3, 27, '#99866b');
-  box(0, -0.05, 0, 25, 0.35, 27, '#8c9d69');
-  box(0, -1.28, 0, 24.5, 0.22, 26.5, '#776b56');
+  box(0, -0.65, -2, 20, 1.3, 34, '#99866b');
+  box(0, -0.05, -2, 20, 0.35, 34, '#8c9d69');
+  box(0, -1.28, -2, 19.5, 0.22, 33.5, '#776b56');
+  box(8.8, 0.18, -5, 1.2, 0.08, 17.4, '#c5bda5');
+  box(6.4, 0.19, 3, 5, 0.08, 1.6, '#c5bda5');
+  placement = 'stable';
   box(-7.5, 0.18, 0, 6.9, 0.1, 22, '#c6bd9e');
-  box(-7.5, 0.2, 0, 1.55, 0.06, 22.8, '#aba798');
-  box(-5, 0.18, 11.3, 6.5, 0.08, 1.5, '#c5bda5');
-  box(-2.5, 0.18, 5.65, 1.4, 0.08, 12.6, '#c5bda5');
-  box(-0.6, 0.19, 0, 5, 0.08, 1.6, '#c5bda5');
+  box(-7.5, 0.2, 0, 1.55, 0.06, 24.3, '#aba798');
   // A single long cream stable, with eight bays west and seven east of its aisle.
   box(-10.65, 1.45, 0, 0.18, 2.6, 21.2, '#cac9ad');
   box(-4.35, 0.8, 0, 0.18, 1.3, 21.2, '#c4c5a7');
@@ -91,7 +100,7 @@ export function createWorld(
     ctx.fillText(String(i + 1).padStart(2, '0'), i * 64 + 32, 32);
   const labelTexture = new THREE.CanvasTexture(labelCanvas);
   for (let id = 0; id < STALL_CAPACITY; id++) {
-    const p = stall(id),
+    const p = { x: id < 8 ? -9.3 : -5.7, z: stall(id).x / 0.7 },
       left = id < 8,
       wallX = left ? -10.55 : -4.45,
       frontX = left ? -8.25 : -6.75;
@@ -114,8 +123,8 @@ export function createWorld(
         side: THREE.DoubleSide,
       }),
     );
-    plate.position.set(frontX, 2.6, p.z);
-    plate.rotation.y = Math.PI / 2;
+    plate.position.set(p.z * 0.7, 2.6, -(frontX + 7.5) - 13);
+    plate.rotation.y = 0;
     scene.add(plate);
   }
   // Gray-brown tiled gable, with the camera-facing half cut away to expose the bays.
@@ -131,6 +140,13 @@ export function createWorld(
       3,
     ),
   );
+  const roofPositions = roofGeo.getAttribute('position');
+  for (let i = 0; i < roofPositions.count; i++) {
+    const x = roofPositions.getX(i),
+      z = roofPositions.getZ(i);
+    roofPositions.setX(i, z * 0.7);
+    roofPositions.setZ(i, -(x + 7.5) - 13);
+  }
   roofGeo.computeVertexNormals();
   scene.add(
     new THREE.Mesh(
@@ -143,13 +159,14 @@ export function createWorld(
   );
   box(-7.5, 4.04, 0, 0.2, 0.15, 22.3, '#555b59');
   for (let i = 0; i < 43; i++)
-    box(-9.25, 3.47, -10.8 + i * 0.51, 3.6, 0.045, 0.06, '#959084').rotation.z =
+    box(-9.25, 3.47, -10.8 + i * 0.51, 3.6, 0.045, 0.06, '#959084').rotation.x =
       0.305;
   // Small roof ventilators belong to the same building.
   for (const z of [-6, 3]) {
     box(-8.2, 3.98, z, 0.85, 0.55, 1.6, '#c2bda9');
     box(-8.2, 4.31, z, 1.15, 0.14, 1.95, '#666d69');
   }
+  placement = 'world';
   function fenceSegment(a: THREE.Vector2, b: THREE.Vector2) {
     const dx = b.x - a.x,
       dz = b.y - a.y,
@@ -202,7 +219,7 @@ export function createWorld(
   // The infield is the sole grazing area; both railings open at the stable crossing.
   for (const offset of [-1.25, 1.25])
     for (let i = 0; i < 96; i++) {
-      if (i < 2 || i > 93) continue;
+      if (i >= 46 && i <= 49) continue;
       const points = [i, i + 1].map((n) => {
         const angle = Math.PI + (n / 96) * TAU,
           p = trackPoint(angle, 1),
@@ -217,6 +234,7 @@ export function createWorld(
       });
       fenceSegment(points[0], points[1]);
     }
+  placement = 'infield';
   box(5, 0.16, 0, 7.8, 0.055, 11.3, '#93a56e');
   box(7, 0.45, 6.4, 2, 0.5, 0.7, '#92988a');
   box(7, 0.72, 6.4, 1.7, 0.04, 0.47, '#84aeb0');
@@ -226,13 +244,12 @@ export function createWorld(
       flatShading: true,
     });
   const treePositions = [
-    [-11.5, -11.9],
-    [-11.5, 11.9],
-    [11.3, -11.7],
-    [11.4, 11.7],
-    [1.4, 11.8],
-    [2, -11.9],
+    [-8.5, -17.5],
+    [8.5, -17.5],
+    [-8.5, 13.5],
+    [8.5, 13.5],
   ];
+  placement = 'world';
   const foliage = new THREE.InstancedMesh(
     leafGeo,
     leafMat,
@@ -247,11 +264,13 @@ export function createWorld(
     foliage.setMatrixAt(i, dummy.matrix);
   });
   scene.add(foliage);
+  placement = 'infield';
   for (let i = 0; i < 140; i++) {
     const x = 1.5 + (Math.sin(i * 17.17) * 0.5 + 0.5) * 7,
       z = -5.7 + (Math.sin(i * 39.81) * 0.5 + 0.5) * 11.4;
     box(x, 0.25, z, 0.08, 0.2, 0.08, i % 5 ? '#7b925c' : '#c3b583');
   }
+  placement = 'world';
   const staticMesh = new THREE.InstancedMesh(
     boxGeometry,
     material,
@@ -352,9 +371,9 @@ export function createWorld(
   // Shared particle buffers keep precipitation cheap on mobile; no flashing lightning.
   const particlePositions = new Float32Array(240 * 6);
   for (let i = 0; i < 240; i++) {
-    const x = Math.sin(i * 19.7) * 12,
+    const x = Math.sin(i * 19.7) * 10,
       y = (i * 1.73) % 12,
-      z = Math.cos(i * 7.3) * 13;
+      z = Math.cos(i * 7.3) * 17 - 2;
     particlePositions.set([x, y, z, x, y - 0.4, z], i * 6);
   }
   const rainGeometry = new THREE.BufferGeometry();
@@ -388,7 +407,7 @@ export function createWorld(
   const lamps = new THREE.Group();
   for (const z of [-7, 7]) {
     const lamp = new THREE.PointLight('#ffcc7b', 10, 7, 2);
-    lamp.position.set(-7.5, 2.6, z);
+    lamp.position.set(z * 0.7, 2.6, -13);
     lamps.add(lamp);
   }
   scene.add(lamps);
@@ -432,18 +451,121 @@ export function createWorld(
     scene.fog = kind === 'fog' || kind === 'storm' ? fog : null;
   }
   applyEnvironment(environment);
-  // Fit the entire island at every aspect ratio without rotating or translating the view.
+  // Derive the fitted view from projected bounds; camera orientation never changes.
+  const bounds = [];
+  for (const x of [-10, 10])
+    for (const y of [-1.5, 4.5])
+      for (const z of [-19, 15])
+        bounds.push(
+          new THREE.Vector3(x, y, z).applyMatrix4(camera.matrixWorldInverse),
+        );
+  const fitX = Math.max(...bounds.map((p) => Math.abs(p.x))) * 1.06,
+    fitY = Math.max(...bounds.map((p) => Math.abs(p.y))) * 1.06;
+  let view: Viewport = {
+    zoom: 1,
+    x: 0,
+    y: 0,
+    halfWidth: fitX,
+    halfHeight: fitY,
+  };
+  function projectView() {
+    view = clampView(view);
+    const hw = view.halfWidth / view.zoom,
+      hh = view.halfHeight / view.zoom;
+    camera.left = view.x - hw;
+    camera.right = view.x + hw;
+    camera.top = view.y + hh;
+    camera.bottom = view.y - hh;
+    camera.updateProjectionMatrix();
+  }
+  const pointers = new Map<number, { x: number; y: number }>();
+  let pinch: {
+    distance: number;
+    view: Viewport;
+    anchorX: number;
+    anchorY: number;
+  } | null = null;
+  function pair() {
+    const [a, b] = [...pointers.values()];
+    if (!a || !b) return null;
+    const rect = host.getBoundingClientRect();
+    return {
+      distance: Math.hypot(b.x - a.x, b.y - a.y),
+      x: (((a.x + b.x) / 2 - rect.left) / rect.width) * 2 - 1,
+      y: 1 - (((a.y + b.y) / 2 - rect.top) / rect.height) * 2,
+    };
+  }
+  function startPinch() {
+    const p = pair();
+    pinch =
+      p && p.distance > 1
+        ? {
+            distance: p.distance,
+            view: { ...view },
+            anchorX: p.x,
+            anchorY: p.y,
+          }
+        : null;
+  }
+  function pointerDown(e: PointerEvent) {
+    if (e.pointerType === 'mouse') return;
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    renderer.domElement.setPointerCapture(e.pointerId);
+    if (pointers.size === 2) startPinch();
+  }
+  function pointerMove(e: PointerEvent) {
+    if (!pointers.has(e.pointerId)) return;
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    const p = pair();
+    if (!p || !pinch) return;
+    e.preventDefault();
+    view = zoomAt(
+      pinch.view,
+      (pinch.view.zoom * p.distance) / pinch.distance,
+      pinch.anchorX,
+      pinch.anchorY,
+    );
+    view.x += ((pinch.anchorX - p.x) * view.halfWidth) / view.zoom;
+    view.y += ((pinch.anchorY - p.y) * view.halfHeight) / view.zoom;
+    projectView();
+  }
+  function pointerUp(e: PointerEvent) {
+    pointers.delete(e.pointerId);
+    startPinch();
+  }
+  function clearPointers() {
+    pointers.clear();
+    pinch = null;
+  }
+  function wheel(e: WheelEvent) {
+    if (!e.ctrlKey) return;
+    e.preventDefault();
+    const rect = host.getBoundingClientRect();
+    view = zoomAt(
+      view,
+      view.zoom * Math.exp(-e.deltaY * 0.01),
+      ((e.clientX - rect.left) / rect.width) * 2 - 1,
+      1 - ((e.clientY - rect.top) / rect.height) * 2,
+    );
+    projectView();
+  }
+  const canvas = renderer.domElement;
+  canvas.addEventListener('pointerdown', pointerDown);
+  canvas.addEventListener('pointermove', pointerMove);
+  canvas.addEventListener('pointerup', pointerUp);
+  canvas.addEventListener('pointercancel', pointerUp);
+  canvas.addEventListener('lostpointercapture', pointerUp);
+  canvas.addEventListener('wheel', wheel, { passive: false });
+  window.addEventListener('blur', clearPointers);
   function resize() {
     const w = host.clientWidth,
       h = host.clientHeight;
     if (!w || !h) return;
-    const aspect = w / h;
-    const halfH = Math.max(17, 18.2 / aspect);
-    camera.left = -halfH * aspect;
-    camera.right = halfH * aspect;
-    camera.top = halfH;
-    camera.bottom = -halfH;
-    camera.updateProjectionMatrix();
+    const aspect = w / h,
+      halfHeight = Math.max(fitY, fitX / aspect);
+    view = { ...view, halfWidth: halfHeight * aspect, halfHeight };
+    projectView();
+    clearPointers();
     renderer.setSize(w, h, false);
   }
   const observer = new ResizeObserver(resize);
@@ -544,6 +666,16 @@ export function createWorld(
   frame = requestAnimationFrame(tick);
   return {
     setEnvironment: applyEnvironment,
+    zoomBy(factor) {
+      view = zoomAt(view, view.zoom * factor);
+      projectView();
+      clearPointers();
+    },
+    resetZoom() {
+      view = { ...view, zoom: 1, x: 0, y: 0 };
+      projectView();
+      clearPointers();
+    },
     setPaused(v) {
       paused = v;
     },
@@ -554,6 +686,14 @@ export function createWorld(
       disposed = true;
       cancelAnimationFrame(frame);
       observer.disconnect();
+      canvas.removeEventListener('pointerdown', pointerDown);
+      canvas.removeEventListener('pointermove', pointerMove);
+      canvas.removeEventListener('pointerup', pointerUp);
+      canvas.removeEventListener('pointercancel', pointerUp);
+      canvas.removeEventListener('lostpointercapture', pointerUp);
+      canvas.removeEventListener('wheel', wheel);
+      window.removeEventListener('blur', clearPointers);
+      clearPointers();
       renderer.domElement.removeEventListener('webglcontextlost', onLost);
       renderer.domElement.removeEventListener(
         'webglcontextrestored',

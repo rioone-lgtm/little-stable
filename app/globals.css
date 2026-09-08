@@ -437,3 +437,156 @@ h1 span {
     display: block;
   }
 }
+
+.scene canvas {
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.scene-caption,
+.view-label {
+  pointer-events: none;
+}
+.view-label .pinch-hint {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-size: 12px;
+  letter-spacing: 0;
+}
+.zoom-controls {
+  position: absolute;
+  right: 16px;
+  bottom: 48px;
+  display: flex;
+  gap: 5px;
+}
+.zoom-controls button {
+  width: 44px;
+  height: 44px;
+  border-radius: 9px;
+  box-shadow: 0 2px 8px #14212e12;
+}
+@media (max-width: 600px) {
+  .stable-app {
+    padding: 0 8px;
+    min-height: 480px;
+  }
+  .masthead {
+    height: 66px;
+  }
+  .eyebrow {
+    display: none;
+  }
+  .brand-mark {
+    width: 30px;
+    height: 30px;
+  }
+  h1 {
+    font-size: 22px;
+  }
+  .brand {
+    gap: 7px;
+  }
+  .toolbar {
+    min-height: 80px;
+    padding: 7px 2px max(7px, env(safe-area-inset-bottom));
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    column-gap: 10px;
+    row-gap: 2px;
+    align-content: center;
+  }
+  .population {
+    grid-column: 1;
+    grid-row: 1/3;
+  }
+  .population strong {
+    font-size: 25px;
+  }
+  .activities {
+    grid-column: 2;
+    grid-row: 1/3;
+    gap: 8px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .activities > div {
+    gap: 4px;
+    font-size: 12px;
+  }
+  .activities svg {
+    display: none;
+  }
+  .activities b {
+    font-size: 15px;
+  }
+  .controls {
+    grid-column: 3;
+    grid-row: 1/3;
+    display: flex;
+    width: auto;
+    margin: 0;
+    gap: 5px;
+  }
+  .control {
+    width: 44px !important;
+    height: 44px !important;
+    min-width: 44px !important;
+    padding: 0 !important;
+  }
+  .control span {
+    display: none;
+  }
+  .pause {
+    min-width: 44px !important;
+  }
+  .scene-caption {
+    top: 12px;
+    left: 12px;
+    font-size: 12px;
+  }
+  .view-label {
+    top: 34px;
+    left: 12px;
+  }
+  .scene-footer {
+    bottom: 10px;
+    left: 12px;
+    right: 12px;
+  }
+  .zoom-controls {
+    bottom: 37px;
+    right: 10px;
+  }
+}
+@media (max-width: 360px) {
+  .activities {
+    gap: 3px;
+  }
+  .activities > div {
+    gap: 2px;
+  }
+  .toolbar {
+    column-gap: 5px;
+  }
+  .weather svg {
+    display: none;
+  }
+}
+@media (max-height: 500px) and (orientation: landscape) {
+  .masthead {
+    height: 48px;
+  }
+  .toolbar {
+    min-height: 56px;
+    padding: 4px 0;
+  }
+  .stable-app {
+    min-height: 300px;
+  }
+  .eyebrow {
+    display: none;
+  }
+}

@@ -9,7 +9,15 @@ import {
   Flag,
   ArrowUpRight,
 } from 'lucide-react';
-import { Moon, Cloud, CloudRain, Snowflake } from 'lucide-react';
+import {
+  Moon,
+  Cloud,
+  CloudRain,
+  Snowflake,
+  Plus,
+  Minus,
+  Maximize,
+} from 'lucide-react';
 import { watchEnvironment, type Environment } from '@/lib/environment';
 import { Button } from '@/components/ui/button';
 import type { StableWorld } from '@/lib/world';
@@ -113,7 +121,37 @@ export default function Home() {
           </span>
         </div>
         <div className="view-label">
-          <ArrowUpRight size={16} /> FIXED VIEW <span>01</span>
+          <ArrowUpRight size={16} />{' '}
+          <span className="pinch-hint">2本指で拡大・縮小</span>
+        </div>
+        <div className="zoom-controls" aria-label="箱庭の拡大・縮小">
+          <Button
+            variant="outline"
+            size="icon"
+            disabled={!!status}
+            aria-label="縮小"
+            onClick={() => world.current?.zoomBy(1 / 1.25)}
+          >
+            <Minus />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            disabled={!!status}
+            aria-label="拡大"
+            onClick={() => world.current?.zoomBy(1.25)}
+          >
+            <Plus />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            disabled={!!status}
+            aria-label="全体表示に戻す"
+            onClick={() => world.current?.resetZoom()}
+          >
+            <Maximize />
+          </Button>
         </div>
         {status && (
           <div className="scene-status" role="status">

@@ -39,10 +39,10 @@ test('all horses remain in bounds, graze in the infield and visit all activities
       );
       for (const h of sim.horses) {
         assert.ok(Number.isFinite(h.x) && Number.isFinite(h.z));
-        assert.ok(h.x > -12.5 && h.x < 12.5 && Math.abs(h.z) < 13.5);
+        assert.ok(h.x > -10 && h.x < 10 && h.z > -19 && h.z < 15);
         const distance = Math.hypot(
           h.x - TRACK.x,
-          Math.max(0, Math.abs(h.z) - TRACK.straight),
+          Math.max(0, Math.abs(h.z - TRACK.z) - TRACK.straight),
         );
         if (h.state === 'run')
           assert.ok(
@@ -60,7 +60,10 @@ test('all horses remain in bounds, graze in the infield and visit all activities
 test('all rail crossings use the opening and bay partitions are never crossed', () => {
   const sim = createSimulation();
   const distance = (h) =>
-    Math.hypot(h.x - TRACK.x, Math.max(0, Math.abs(h.z) - TRACK.straight));
+    Math.hypot(
+      h.x - TRACK.x,
+      Math.max(0, Math.abs(h.z - TRACK.z) - TRACK.straight),
+    );
   for (let step = 0; step < 1800 * 30; step++) {
     const before = structuredClone(sim.horses);
     sim.update(1 / 30);
@@ -69,20 +72,20 @@ test('all rail crossings use the opening and bay partitions are never crossed', 
       for (const radius of [4.75, 7.25]) {
         if ((distance(prev) - radius) * (distance(h) - radius) < 0) {
           assert.ok(
-            Math.abs(h.z) < 0.01 && h.x < 1.1,
-            'cross at the west gate',
+            Math.abs(h.z - TRACK.z) < 0.01 && h.x > 4,
+            'cross at the east gate',
           );
         }
       }
       if (
-        (h.x < -8.25 || h.x > -6.75) &&
-        h.x < -4.3 &&
-        prev.x < -4.3 &&
-        h.z < 10.5 &&
-        prev.z < 10.5
+        (h.z > -12.25 || h.z < -13.75) &&
+        h.z < -9.3 &&
+        prev.z < -9.3 &&
+        h.x < 7.5 &&
+        prev.x < 7.5
       ) {
         assert.ok(
-          Math.abs(h.z - prev.z) < 1e-9,
+          Math.abs(h.x - prev.x) < 1e-9,
           'enter each bay directly from the aisle',
         );
       }
