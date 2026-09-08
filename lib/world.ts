@@ -1,5 +1,12 @@
 import * as THREE from 'three';
-import { createSimulation, TRACK, TAU } from './simulation';
+import {
+  createSimulation,
+  TRACK,
+  TAU,
+  trackPoint,
+  stall,
+  STALL_CAPACITY,
+} from './simulation';
 
 export type StableWorld = {
   setPaused(value: boolean): void;
@@ -54,216 +61,194 @@ export function createWorld(
     blocks.push({ object, color: new THREE.Color(color) });
     return object;
   }
-  box(0, -0.65, 0, 34, 1.3, 26, '#a18057');
-  box(0, -0.05, 0, 34, 0.35, 26, '#89b75b');
-  box(0, -1.28, 0, 33.5, 0.22, 25.5, '#796047');
-  box(-7, 0.16, 5.9, 13, 0.06, 10.8, '#9fc564');
-  box(-7, 0.17, -0.2, 14, 0.08, 1.6, '#d3c397');
-  box(-1, 0.17, -2.5, 1.4, 0.08, 4, '#d3c397');
-  box(-7.6, 0.18, -2.7, 12.5, 0.08, 1.4, '#d3c397');
-  // Stable: five open-front bays and a shallow roof so resting horses remain visible.
-  box(-7.6, 0.24, -6.8, 11.8, 0.2, 5.5, '#c4ae83');
-  box(-7.6, 1.5, -9.5, 12, 0.3, 0.25, '#a6533c');
-  box(-7.6, 1.1, -9.35, 12, 2, 0.3, '#b76243');
-  box(-7.6, 2.35, -9.35, 12, 0.28, 0.35, '#eadbc0');
-  for (let i = 0; i <= 5; i++) {
-    const x = -13.1 + i * 2.2;
-    box(x, 1.35, -7, 0.18, 2.5, 4.9, '#e8d9b4');
-    // Bay dividers are low enough for a cutaway dollhouse view.
-    box(x, 0.7, -7, 0.18, 0.85, 4.6, '#ae6748');
-    box(x, 2.7, -7.9, 0.22, 0.3, 3.7, '#eadabb');
+
+  box(0, -0.65, 0, 25, 1.3, 27, '#99866b');
+  box(0, -0.05, 0, 25, 0.35, 27, '#8c9d69');
+  box(0, -1.28, 0, 24.5, 0.22, 26.5, '#776b56');
+  box(-7.5, 0.18, 0, 6.9, 0.1, 22, '#c6bd9e');
+  box(-7.5, 0.2, 0, 1.55, 0.06, 22.8, '#aba798');
+  box(-5, 0.18, 11.3, 6.5, 0.08, 1.5, '#c5bda5');
+  box(-2.5, 0.18, 5.65, 1.4, 0.08, 12.6, '#c5bda5');
+  box(-0.6, 0.19, 0, 5, 0.08, 1.6, '#c5bda5');
+  // A single long cream stable, with eight bays west and seven east of its aisle.
+  box(-10.65, 1.45, 0, 0.18, 2.6, 21.2, '#cac9ad');
+  box(-4.35, 0.8, 0, 0.18, 1.3, 21.2, '#c4c5a7');
+  box(-7.5, 1.4, -10.55, 6.4, 2.5, 0.18, '#d2cdb8');
+  const labelCanvas = document.createElement('canvas');
+  labelCanvas.width = 1024;
+  labelCanvas.height = 64;
+  const ctx = labelCanvas.getContext('2d')!;
+  ctx.fillStyle = '#53584f';
+  ctx.fillRect(0, 0, 1024, 64);
+  ctx.font = 'bold 38px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#fff5d9';
+  for (let i = 0; i < 15; i++)
+    ctx.fillText(String(i + 1).padStart(2, '0'), i * 64 + 32, 32);
+  const labelTexture = new THREE.CanvasTexture(labelCanvas);
+  for (let id = 0; id < STALL_CAPACITY; id++) {
+    const p = stall(id),
+      left = id < 8,
+      wallX = left ? -10.55 : -4.45,
+      frontX = left ? -8.25 : -6.75;
+    box(p.x, 0.24, p.z, 2.6, 0.12, 2.45, id < 10 ? '#c5b374' : '#bdb69d');
+    for (const z of [p.z - 1.3, p.z + 1.3])
+      box(p.x, 0.95, z, 2.7, 1.45, 0.12, '#babda2');
+    box(frontX, 1.55, p.z - 1.2, 0.14, 2.7, 0.14, '#d9d4bc');
+    // Wide open doorway; the dedicated horse approaches horizontally from the aisle.
+    for (const dz of [-0.98, 0.98])
+      box(frontX, 0.95, p.z + dz, 0.12, 1.45, 0.4, '#929980');
+    box(wallX, 1.85, p.z, 0.06, 0.55, 0.8, '#65796d');
+    box(p.x, 0.39, p.z - 0.85, 0.75, 0.25, 0.4, '#c6b675');
+    const geo = new THREE.PlaneGeometry(0.62, 0.38);
+    const uv = geo.getAttribute('uv');
+    for (let k = 0; k < uv.count; k++) uv.setX(k, (id + uv.getX(k)) / 16);
+    const plate = new THREE.Mesh(
+      geo,
+      new THREE.MeshBasicMaterial({
+        map: labelTexture,
+        side: THREE.DoubleSide,
+      }),
+    );
+    plate.position.set(frontX, 2.6, p.z);
+    plate.rotation.y = Math.PI / 2;
+    scene.add(plate);
   }
-  box(-7.6, 2.7, -5.1, 11.7, 0.24, 0.24, '#eadabb');
-  for (let i = 0; i < 5; i++) {
-    box(-12 + i * 2.2, 0.4, -8.5, 1.25, 0.25, 0.65, '#d8b956');
-    box(-12 + i * 2.2, 1.7, -9.12, 0.75, 0.65, 0.12, '#475d53');
-  }
-  const roofMat = new THREE.MeshLambertMaterial({
-    color: '#ab4e38',
-    side: THREE.DoubleSide,
-  });
+  // Gray-brown tiled gable, with the camera-facing half cut away to expose the bays.
   const roofGeo = new THREE.BufferGeometry();
   roofGeo.setAttribute(
     'position',
     new THREE.Float32BufferAttribute(
       [
-        -13.6, 2.8, -10, -1.5, 2.8, -10, -1.5, 3.9, -8.9, -13.6, 2.8, -10, -1.5,
-        3.9, -8.9, -13.6, 3.9, -8.9, -13.6, 3.9, -8.9, -1.5, 3.9, -8.9, -1.5,
-        2.8, -7.8, -13.6, 3.9, -8.9, -1.5, 2.8, -7.8, -13.6, 2.8, -7.8,
+        -11, 2.9, -11, -7.5, 4, -11, -7.5, 4, 10.9, -11, 2.9, -11, -7.5, 4,
+        10.9, -11, 2.9, 10.9, -7.5, 4, -11, -6.9, 3.81, -11, -6.9, 3.81, 10.9,
+        -7.5, 4, -11, -6.9, 3.81, 10.9, -7.5, 4, 10.9,
       ],
       3,
     ),
   );
   roofGeo.computeVertexNormals();
-  scene.add(new THREE.Mesh(roofGeo, roofMat));
-  for (let i = 0; i < 22; i++)
-    box(-13.45 + i * 0.55, 3.92, -8.9, 0.045, 0.06, 0.12, '#c27450');
-  // Small feed shed, hay stacks, trough and flag.
-  box(-14.7, 0.8, -7.9, 2, 1.5, 2.6, '#73886c');
-  box(-14.7, 1.64, -7.9, 2.25, 0.18, 2.85, '#495e50');
-  box(-14.7, 0.7, -6.55, 0.8, 1.2, 0.1, '#41584b');
-  for (let i = 0; i < 4; i++)
-    box(
-      -14.6 + (i % 2) * 0.85,
-      0.4 + Math.floor(i / 2) * 0.55,
-      -3.8,
-      0.75,
-      0.55,
-      0.9,
-      '#dbba58',
-    );
-  box(-11.3, 0.45, 9.4, 2.3, 0.5, 0.8, '#82938e');
-  box(-11.3, 0.72, 9.4, 2, 0.04, 0.55, '#79bdd0');
+  scene.add(
+    new THREE.Mesh(
+      roofGeo,
+      new THREE.MeshLambertMaterial({
+        color: '#827e73',
+        side: THREE.DoubleSide,
+      }),
+    ),
+  );
+  box(-7.5, 4.04, 0, 0.2, 0.15, 22.3, '#555b59');
+  for (let i = 0; i < 43; i++)
+    box(-9.25, 3.47, -10.8 + i * 0.51, 3.6, 0.045, 0.06, '#959084').rotation.z =
+      0.305;
+  // Small roof ventilators belong to the same building.
+  for (const z of [-6, 3]) {
+    box(-8.2, 3.98, z, 0.85, 0.55, 1.6, '#c2bda9');
+    box(-8.2, 4.31, z, 1.15, 0.14, 1.95, '#666d69');
+  }
   function fenceSegment(a: THREE.Vector2, b: THREE.Vector2) {
     const dx = b.x - a.x,
       dz = b.y - a.y,
       length = Math.hypot(dx, dz);
-    box(a.x, 0.75, a.y, 0.13, 1.2, 0.13, '#f2e8ca');
-    for (const y of [0.6, 1.02])
+    box(a.x, 0.65, a.y, 0.085, 1, 0.085, '#aaa995');
+    for (const y of [0.5, 0.92])
       box(
         (a.x + b.x) / 2,
         y,
         (a.y + b.y) / 2,
-        0.09,
-        0.095,
+        0.065,
+        0.07,
         length,
-        '#ede3c8',
+        '#d4d0b9',
         undefined,
         Math.atan2(dx, dz),
       );
   }
-  function fenceLine(ax: number, az: number, bx: number, bz: number) {
-    const n = Math.ceil(Math.hypot(bx - ax, bz - az) / 1.5);
-    for (let i = 0; i < n; i++)
-      fenceSegment(
-        new THREE.Vector2(ax + ((bx - ax) * i) / n, az + ((bz - az) * i) / n),
-        new THREE.Vector2(
-          ax + ((bx - ax) * (i + 1)) / n,
-          az + ((bz - az) * (i + 1)) / n,
-        ),
-      );
-  }
-  fenceLine(-13.6, 1, -7.5, 1);
-  fenceLine(-5.5, 1, -0.7, 1);
-  fenceLine(-13.6, 1, -13.6, 11);
-  fenceLine(-13.6, 11, -0.7, 11);
-  fenceLine(-0.7, 11, -0.7, 1);
-  function ellipseRing(
-    rx: number,
-    rz: number,
-    width: number,
-    color: string,
-    y: number,
-  ) {
-    const verts: number[] = [],
+  function ring(offset: number, width: number, color: string, y: number) {
+    const vertices: number[] = [],
       indices: number[] = [];
-    for (let i = 0; i <= 96; i++) {
-      const t = (i / 96) * TAU;
-      for (const off of [-width / 2, width / 2])
-        verts.push(
-          TRACK.x + (rx + off) * Math.cos(t),
-          y,
-          (rz + off) * Math.sin(t),
-        );
-      if (i < 96) {
+    for (let i = 0; i <= 128; i++) {
+      const angle = Math.PI + (i / 128) * TAU;
+      for (const o of [offset - width / 2, offset + width / 2]) {
+        const p = trackPoint(angle, 1);
+        const outer = trackPoint(angle + 0.0001, 1);
+        const dx = outer.x - p.x,
+          dz = outer.z - p.z,
+          len = Math.hypot(dx, dz);
+        vertices.push(p.x - (dz / len) * o, y, p.z + (dx / len) * o);
+      }
+      if (i < 128) {
         const j = i * 2;
         indices.push(j, j + 2, j + 1, j + 1, j + 2, j + 3);
       }
     }
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute(
-      'position',
-      new THREE.Float32BufferAttribute(verts, 3),
-    );
-    geometry.setIndex(indices);
-    geometry.computeVertexNormals();
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+    geo.setIndex(indices);
+    geo.computeVertexNormals();
     scene.add(
       new THREE.Mesh(
-        geometry,
+        geo,
         new THREE.MeshLambertMaterial({ color, side: THREE.DoubleSide }),
       ),
     );
   }
-  ellipseRing(5.9, 9, 2.05, '#bc9163', 0.2);
-  ellipseRing(5.9, 9, 0.025, '#d6b183', 0.215);
-  for (const offset of [-1.18, 1.18])
-    for (let i = 0; i < 64; i++) {
-      // Entrance gap at the left-hand midpoint for horses to join and leave the track.
-      if (offset > 0 && Math.abs(i - 32) < 2) continue;
-      const a = (i / 64) * TAU,
-        b = ((i + 1) / 64) * TAU;
-      fenceSegment(
-        new THREE.Vector2(
-          8 + (5.9 + offset) * Math.cos(a),
-          (9 + offset) * Math.sin(a),
-        ),
-        new THREE.Vector2(
-          8 + (5.9 + offset) * Math.cos(b),
-          (9 + offset) * Math.sin(b),
-        ),
-      );
+  ring(0, 2.3, '#c7bea4', 0.2);
+  for (const o of [-0.65, -0.32, 0.32, 0.65]) ring(o, 0.025, '#b4ab91', 0.215);
+  // The infield is the sole grazing area; both railings open at the stable crossing.
+  for (const offset of [-1.25, 1.25])
+    for (let i = 0; i < 96; i++) {
+      if (i < 2 || i > 93) continue;
+      const points = [i, i + 1].map((n) => {
+        const angle = Math.PI + (n / 96) * TAU,
+          p = trackPoint(angle, 1),
+          q = trackPoint(angle + 0.0001, 1),
+          dx = q.x - p.x,
+          dz = q.z - p.z,
+          l = Math.hypot(dx, dz);
+        return new THREE.Vector2(
+          p.x - (dz / l) * offset,
+          p.z + (dx / l) * offset,
+        );
+      });
+      fenceSegment(points[0], points[1]);
     }
-  for (let i = 0; i < 6; i++)
-    for (let j = 0; j < 2; j++)
-      box(
-        8 + (i - 2.5) * 0.35,
-        0.225,
-        9 + (j - 0.5) * 0.32,
-        0.35,
-        0.02,
-        0.32,
-        (i + j) % 2 ? '#f5ebce' : '#65715a',
-      );
-  box(11, 1.8, 5, 0.09, 3.3, 0.09, '#e6ddbd');
-  box(11.6, 3.05, 5, 1.2, 0.65, 0.06, '#d98145');
-  // Low-poly trees and patches. Deterministic placement avoids layout changes on reload.
-  const leafGeo = new THREE.IcosahedronGeometry(1, 0);
-  const leafMat = new THREE.MeshLambertMaterial({
-    color: '#62924e',
-    flatShading: true,
-  });
+  box(5, 0.16, 0, 7.8, 0.055, 11.3, '#93a56e');
+  box(7, 0.45, 6.4, 2, 0.5, 0.7, '#92988a');
+  box(7, 0.72, 6.4, 1.7, 0.04, 0.47, '#84aeb0');
+  const leafGeo = new THREE.IcosahedronGeometry(1, 0),
+    leafMat = new THREE.MeshLambertMaterial({
+      color: '#687f54',
+      flatShading: true,
+    });
   const treePositions = [
-    [-15, 9],
-    [-15, 5],
-    [-15, 1],
-    [-12, -11],
-    [-7, -11],
-    [-2, -11],
-    [15, -10],
-    [15, -6],
-    [15, 6],
-    [15, 10],
-    [1, 11],
-    [8, -1],
-    [10, 2],
-    [7, 4],
+    [-11.5, -11.9],
+    [-11.5, 11.9],
+    [11.3, -11.7],
+    [11.4, 11.7],
+    [1.4, 11.8],
+    [2, -11.9],
   ];
   const foliage = new THREE.InstancedMesh(
     leafGeo,
     leafMat,
-    treePositions.length * 2,
+    treePositions.length,
   );
   const dummy = new THREE.Object3D();
-  let fi = 0;
-  for (const [x, z] of treePositions) {
-    box(x, 1, z, 0.35, 1.9, 0.35, '#87664a');
-    for (let j = 0; j < 2; j++) {
-      dummy.position.set(x + (j ? -0.3 : 0.2), 2.1 + j * 0.65, z);
-      dummy.scale.set(1.2 - j * 0.3, 1.15, 1.1 - j * 0.2);
-      dummy.rotation.y = fi;
-      dummy.updateMatrix();
-      foliage.setMatrixAt(fi, dummy.matrix);
-      foliage.setColorAt(fi++, new THREE.Color(j ? '#80ac57' : '#5c9048'));
-    }
-  }
+  treePositions.forEach(([x, z], i) => {
+    box(x, 0.8, z, 0.25, 1.3, 0.25, '#807059');
+    dummy.position.set(x, 1.8, z);
+    dummy.scale.set(0.85, 1, 0.85);
+    dummy.updateMatrix();
+    foliage.setMatrixAt(i, dummy.matrix);
+  });
   scene.add(foliage);
-  for (let i = 0; i < 110; i++) {
-    const x = -12.7 + (Math.sin(i * 17.17) * 0.5 + 0.5) * 11.1,
-      z = 2 + (Math.sin(i * 39.81) * 0.5 + 0.5) * 8.1;
-    box(x, 0.25, z, 0.09, 0.25, 0.08, i % 4 ? '#7fa94f' : '#e6d99c');
+  for (let i = 0; i < 140; i++) {
+    const x = 1.5 + (Math.sin(i * 17.17) * 0.5 + 0.5) * 7,
+      z = -5.7 + (Math.sin(i * 39.81) * 0.5 + 0.5) * 11.4;
+    box(x, 0.25, z, 0.08, 0.2, 0.08, i % 5 ? '#7b925c' : '#c3b583');
   }
-  for (let i = 0; i < 15; i++)
-    box(-16.1 + i * 2.15, -0.45, 12.98, 0.65, 0.25, 0.05, '#b29365');
   const staticMesh = new THREE.InstancedMesh(
     boxGeometry,
     material,
@@ -366,7 +351,7 @@ export function createWorld(
       h = host.clientHeight;
     if (!w || !h) return;
     const aspect = w / h;
-    const halfH = Math.max(18.5, 24 / aspect);
+    const halfH = Math.max(17, 18.2 / aspect);
     camera.left = -halfH * aspect;
     camera.right = halfH * aspect;
     camera.top = halfH;
@@ -482,6 +467,7 @@ export function createWorld(
         }
       });
       geometries.forEach((g) => g.dispose());
+      labelTexture.dispose();
       materials.forEach((m) => m.dispose());
       renderer.dispose();
       renderer.domElement.remove();
