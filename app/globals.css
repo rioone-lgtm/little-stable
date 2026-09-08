@@ -374,3 +374,66 @@ h1 span {
     display: none;
   }
 }
+
+.weather > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.weather small {
+  font-size: 12px;
+}
+.scene-footer a {
+  color: inherit;
+  font-size: 12px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.stable-app {
+  transition:
+    background-color 1s,
+    color 1s;
+}
+.stable-app[data-night='true'] {
+  background: #14212e;
+  color: #dfdfd1;
+}
+.stable-app[data-night='true'] .world-panel {
+  background: #172537;
+  border-color: #35424e;
+}
+.stable-app[data-night='true'] .weather,
+.stable-app[data-night='true'] .eyebrow,
+.stable-app[data-night='true'] h1 span,
+.stable-app[data-night='true'] .scene-caption,
+.stable-app[data-night='true'] .view-label,
+.stable-app[data-night='true'] .scene-footer,
+.stable-app[data-night='true'] .activities > div,
+.stable-app[data-night='true'] .population > span {
+  color: #b7c5ce;
+}
+.stable-app[data-night='true'] .activities b {
+  color: #f1e6cb;
+}
+.stable-app[data-night='true'] .scene-status {
+  background: #172537ed;
+  color: #e6e9e4;
+}
+.stable-app[data-night='true'] .brand-mark,
+.stable-app[data-night='true'] .population {
+  border-color: #46535e;
+}
+@media (max-width: 600px) {
+  .weather > div > span {
+    font-size: 11px;
+  }
+  .weather small {
+    font-size: 11px;
+  }
+  .weather {
+    gap: 5px;
+  }
+  .scene-footer a {
+    display: block;
+  }
+}

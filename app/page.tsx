@@ -9,21 +9,32 @@ import {
   Flag,
   ArrowUpRight,
 } from 'lucide-react';
+import { Moon, Cloud, CloudRain, Snowflake } from 'lucide-react';
+import { watchEnvironment, type Environment } from '@/lib/environment';
 import { Button } from '@/components/ui/button';
 import type { StableWorld } from '@/lib/world';
 export default function Home() {
   const mount = useRef<HTMLDivElement>(null);
   const world = useRef<StableWorld | null>(null);
+  const [environment, setEnvironment] = useState<Environment | null>(null);
+  const latestEnvironment = useRef<Environment | null>(null);
   const [paused, setPaused] = useState(false);
   const [fast, setFast] = useState(false);
   const [status, setStatus] = useState('箱庭を準備しています…');
   const [counts, setCounts] = useState({ rest: 0, graze: 0, run: 0, walk: 0 });
   useEffect(() => {
     let disposed = false;
+    const stopWeather = watchEnvironment((value) => {
+      latestEnvironment.current = value;
+      setEnvironment(value);
+      world.current?.setEnvironment(value);
+    });
     import('@/lib/world')
       .then(({ createWorld }) => {
         if (disposed || !mount.current) return;
         world.current = createWorld(mount.current, setCounts, setStatus);
+        if (latestEnvironment.current)
+          world.current.setEnvironment(latestEnvironment.current);
         setStatus('');
       })
       .catch(() =>
@@ -33,12 +44,28 @@ export default function Home() {
       );
     return () => {
       disposed = true;
+      stopWeather();
       world.current?.dispose();
       world.current = null;
     };
   }, []);
+  const WeatherIcon =
+    environment?.weather?.kind === 'snow'
+      ? Snowflake
+      : environment?.weather?.kind === 'rain' ||
+          environment?.weather?.kind === 'storm'
+        ? CloudRain
+        : environment?.weather?.kind === 'cloud' ||
+            environment?.weather?.kind === 'fog'
+          ? Cloud
+          : environment && environment.daylight < 0.3
+            ? Moon
+            : Sun;
   return (
-    <main className="stable-app">
+    <main
+      className="stable-app"
+      data-night={environment ? environment.daylight < 0.3 : false}
+    >
       <header className="masthead">
         <div className="brand">
           <span className="brand-mark">
@@ -52,9 +79,21 @@ export default function Home() {
           </div>
         </div>
         <div className="weather">
-          <Sun size={20} />
-          <span>ある晴れた午後</span>
-          <i />
+          <WeatherIcon size={20} />
+          <div>
+            <span>伊勢崎市 · {environment?.clock ?? '--:--'} JST</span>
+            <small>
+              {environment?.weather
+                ? environment.weather.label +
+                  ' ' +
+                  Math.round(environment.weather.temperature) +
+                  '°C' +
+                  (environment.stale ? '（更新待ち）' : '')
+                : environment?.stale
+                  ? '天気を取得できません'
+                  : '天気を取得中…'}
+            </small>
+          </div>
         </div>
       </header>
       <section
@@ -70,7 +109,7 @@ export default function Home() {
         <div className="scene-caption">
           <span className="live-dot" />
           <span>
-            {paused ? '時間をとめています' : '馬たちの、いつもの一日'}
+            {paused ? '馬たちの動きをとめています' : '馬たちの、いつもの一日'}
           </span>
         </div>
         <div className="view-label">
@@ -82,7 +121,9 @@ export default function Home() {
           </div>
         )}
         <div className="scene-footer">
-          <span>のんびり、眺めていこう。</span>
+          <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">
+            Weather by Open-Meteo
+          </a>
           <span>10 HORSES · ONE LITTLE HOME</span>
         </div>
       </section>

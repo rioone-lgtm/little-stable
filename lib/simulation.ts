@@ -45,7 +45,41 @@ export function stall(id: number): Point {
 export function stallAisle(id: number): Point {
   return { x: -7.5, z: stall(id).z };
 }
-export function createSimulation(seed = 9817) {
+export function createSimulation(seed = 9817, initialHour = 14) {
+  let hour = initialHour;
+  const period = () =>
+    hour < 5 || hour >= 20
+      ? 'night'
+      : hour < 11
+        ? 'morning'
+        : hour < 17
+          ? 'day'
+          : 'evening';
+  const duration = (id: number, state: Activity) =>
+    state === 'rest'
+      ? period() === 'night' && id < 8
+        ? 420
+        : period() === 'evening'
+          ? 90
+          : 25
+      : 20;
+  const choose = (id: number): Activity => {
+    const p = period(),
+      nightOwl = id >= 8;
+    const rest =
+      p === 'night'
+        ? nightOwl
+          ? 0.12
+          : 0.98
+        : p === 'evening'
+          ? 0.68
+          : p === 'morning'
+            ? 0.16
+            : 0.35;
+    const run =
+      p === 'morning' ? 0.6 : p === 'night' ? (nightOwl ? 0.48 : 0.5) : 0.4;
+    return random() < rest ? 'rest' : random() < run ? 'run' : 'graze';
+  };
   let value = seed >>> 0;
   const random = () => {
     value = (Math.imul(value, 1664525) + 1013904223) >>> 0;
@@ -56,8 +90,31 @@ export function createSimulation(seed = 9817) {
     z: -5 + random() * 10,
   });
   const horses: Horse[] = Array.from({ length: 10 }, (_, id) => {
-    const state: Activity = id < 3 ? 'rest' : id < 7 ? 'graze' : 'run';
-    const trackAngle = Math.PI + (id - 7) * 1.7;
+    const state: Activity =
+      period() === 'night'
+        ? id < 8
+          ? 'rest'
+          : id === 8
+            ? 'graze'
+            : 'run'
+        : period() === 'morning'
+          ? id < 2
+            ? 'rest'
+            : id < 5
+              ? 'graze'
+              : 'run'
+          : period() === 'evening'
+            ? id < 6
+              ? 'rest'
+              : id < 8
+                ? 'graze'
+                : 'run'
+            : id < 3
+              ? 'rest'
+              : id < 7
+                ? 'graze'
+                : 'run';
+    const trackAngle = Math.PI + (id % 5) * 1.1;
     const p =
       state === 'rest'
         ? stall(id)
@@ -70,9 +127,14 @@ export function createSimulation(seed = 9817) {
       state,
       destination: state,
       zone: state,
-      angle: state === 'rest' ? Math.PI / 2 : random() * TAU,
+      angle:
+        state === 'rest'
+          ? id < 8
+            ? Math.PI / 2
+            : -Math.PI / 2
+          : random() * TAU,
       phase: random() * TAU,
-      timer: 7 + random() * 15,
+      timer: duration(id, state) * (1 + random()),
       trackAngle,
       lapEnd: Math.PI + TAU * 2,
       route: [],
@@ -87,7 +149,7 @@ export function createSimulation(seed = 9817) {
     h.state = h.destination;
     h.zone = h.destination;
     h.visits[h.state]++;
-    h.timer = 10 + random() * 18;
+    h.timer = duration(h.id, h.state) * (1 + random());
     if (h.state === 'run') {
       h.trackAngle = Math.PI;
       h.lapEnd = Math.PI + TAU * (1 + Math.floor(random() * 2));
@@ -152,7 +214,9 @@ export function createSimulation(seed = 9817) {
         }
         if (!h.route.length) enter(h);
       } else if (h.state === 'run') {
-        const velocity = 3.0 + h.id * 0.055;
+        const velocity =
+          (3.0 + h.id * 0.055) *
+          (period() === 'morning' ? 1.15 : period() === 'night' ? 0.85 : 1);
         const r = TRACK.radius + ((h.id % 3) - 1) * 0.28;
         h.trackAngle = Math.min(
           h.lapEnd,
@@ -161,27 +225,37 @@ export function createSimulation(seed = 9817) {
         Object.assign(h, trackPoint(h.trackAngle, h.id));
         const ahead = trackPoint(h.trackAngle + 0.001, h.id);
         h.angle = Math.atan2(ahead.x - h.x, ahead.z - h.z);
-        if (h.trackAngle >= h.lapEnd)
-          travel(h, random() < 0.6 ? 'rest' : 'graze');
+        if (h.trackAngle >= h.lapEnd) {
+          const next = choose(h.id);
+          if (next === 'run') h.lapEnd += TAU;
+          else travel(h, next);
+        }
       } else {
         h.timer -= dt;
-        if (h.timer <= 0)
-          travel(
-            h,
-            h.state === 'rest'
-              ? random() < 0.65
-                ? 'graze'
-                : 'run'
-              : random() < 0.65
-                ? 'run'
-                : 'rest',
-          );
+        if (h.timer <= 0) {
+          const next = choose(h.id);
+          if (next === h.state) h.timer = duration(h.id, next) * (1 + random());
+          else travel(h, next);
+        }
       }
     }
   }
   return {
     horses,
     update,
+    setHour(next: number) {
+      if (!Number.isFinite(next) || next < 0 || next >= 24)
+        throw new Error('Invalid hour');
+      const previous = period();
+      hour = next;
+      if (previous !== period())
+        for (const h of horses) {
+          h.timer = Math.min(h.timer, 2 + h.id);
+          if (h.state === 'run')
+            h.lapEnd =
+              Math.PI + (Math.floor((h.trackAngle - Math.PI) / TAU) + 1) * TAU;
+        }
+    },
     counts: () =>
       horses.reduce(
         (c, h) => {

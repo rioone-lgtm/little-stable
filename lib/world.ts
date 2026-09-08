@@ -1,3 +1,4 @@
+import { environmentAt, type Environment } from './environment';
 import * as THREE from 'three';
 import {
   createSimulation,
@@ -9,6 +10,7 @@ import {
 } from './simulation';
 
 export type StableWorld = {
+  setEnvironment(value: Environment): void;
   setPaused(value: boolean): void;
   setSpeed(value: number): void;
   dispose(): void;
@@ -32,7 +34,8 @@ export function createWorld(
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.setClearColor('#e3eddb');
   host.appendChild(renderer.domElement);
-  scene.add(new THREE.HemisphereLight('#fff9de', '#7a9276', 2.5));
+  const ambient = new THREE.HemisphereLight('#fff9de', '#7a9276', 2.5);
+  scene.add(ambient);
   const sunlight = new THREE.DirectionalLight('#fff1d0', 2.3);
   sunlight.position.set(-12, 25, 12);
   scene.add(sunlight);
@@ -261,7 +264,8 @@ export function createWorld(
   });
   scene.add(staticMesh);
   blocks.length = 0;
-  const simulation = createSimulation();
+  let environment = environmentAt(Date.now());
+  const simulation = createSimulation(9817, environment.hour);
   const coats = [
     '#7f4830',
     '#c2a17a',
@@ -345,6 +349,89 @@ export function createWorld(
   const shadows = new THREE.InstancedMesh(shadowGeometry, shadowMaterial, 10);
   shadows.frustumCulled = false;
   scene.add(shadows);
+  // Shared particle buffers keep precipitation cheap on mobile; no flashing lightning.
+  const particlePositions = new Float32Array(240 * 6);
+  for (let i = 0; i < 240; i++) {
+    const x = Math.sin(i * 19.7) * 12,
+      y = (i * 1.73) % 12,
+      z = Math.cos(i * 7.3) * 13;
+    particlePositions.set([x, y, z, x, y - 0.4, z], i * 6);
+  }
+  const rainGeometry = new THREE.BufferGeometry();
+  rainGeometry.setAttribute(
+    'position',
+    new THREE.BufferAttribute(particlePositions, 3),
+  );
+  const rainMaterial = new THREE.LineBasicMaterial({
+    color: '#bbd2e4',
+    transparent: true,
+    opacity: 0.5,
+  });
+  const rain = new THREE.LineSegments(rainGeometry, rainMaterial);
+  rain.frustumCulled = false;
+  scene.add(rain);
+  const snowPositions = new Float32Array(240 * 3);
+  const snowGeometry = new THREE.BufferGeometry();
+  snowGeometry.setAttribute(
+    'position',
+    new THREE.BufferAttribute(snowPositions, 3),
+  );
+  const snowMaterial = new THREE.PointsMaterial({
+    color: '#e8eff4',
+    size: 0.12,
+    transparent: true,
+    opacity: 0.8,
+  });
+  const snow = new THREE.Points(snowGeometry, snowMaterial);
+  snow.frustumCulled = false;
+  scene.add(snow);
+  const lamps = new THREE.Group();
+  for (const z of [-7, 7]) {
+    const lamp = new THREE.PointLight('#ffcc7b', 10, 7, 2);
+    lamp.position.set(-7.5, 2.6, z);
+    lamps.add(lamp);
+  }
+  scene.add(lamps);
+  const nightColor = new THREE.Color('#172537'),
+    dayColor = new THREE.Color('#e3eddb'),
+    overcast = new THREE.Color('#a7b3b5'),
+    twilight = new THREE.Color('#c59379'),
+    sky = new THREE.Color();
+  const fog = new THREE.Fog('#a7b3b5', 45, 110);
+  function applyEnvironment(value: Environment) {
+    environment = value;
+    simulation.setHour(value.hour);
+    const kind = value.weather?.kind,
+      cloud = value.weather ? value.weather.cloud / 100 : 0.2,
+      day = value.daylight;
+    sky.copy(nightColor).lerp(dayColor, day);
+    if (day > 0 && day < 1) sky.lerp(twilight, Math.sin(day * Math.PI) * 0.5);
+    sky.lerp(overcast, cloud * day * 0.55);
+    scene.background = sky;
+    ambient.intensity = 0.65 + day * 1.85;
+    ambient.color.set(day < 0.3 ? '#8ea8d3' : '#fff4dc');
+    sunlight.intensity = 0.18 + day * 2.3 * (1 - cloud * 0.75);
+    sunlight.color.set(
+      day < 0.3 ? '#acc8ff' : day < 0.9 ? '#ffbd86' : '#fff1d0',
+    );
+    sunlight.position.set(
+      Math.cos((value.hour / 24) * TAU) * 22,
+      8 + day * 20,
+      12,
+    );
+    lamps.visible = day < 0.45;
+    shadowMaterial.opacity = 0.08 + day * 0.11;
+    rain.visible = kind === 'rain' || kind === 'storm';
+    snow.visible = kind === 'snow';
+    rainGeometry.setDrawRange(
+      0,
+      Math.min(240, 60 + Math.round((value.weather?.precipitation ?? 0) * 35)) *
+        2,
+    );
+    fog.color.copy(sky);
+    scene.fog = kind === 'fog' || kind === 'storm' ? fog : null;
+  }
+  applyEnvironment(environment);
   // Fit the entire island at every aspect ratio without rotating or translating the view.
   function resize() {
     const w = host.clientWidth,
@@ -382,6 +469,22 @@ export function createWorld(
     if (now - last < interval) return;
     const dt = Math.min((now - last) / 1000, 0.1);
     last = now;
+    // The wall clock and weather are independent of pause and simulation speed.
+    if (rain.visible || snow.visible) {
+      for (let i = 0; i < 240; i++) {
+        const j = i * 6;
+        let y = particlePositions[j + 1] - dt * (snow.visible ? 1.15 : 13);
+        if (y < 0.3) y = 12;
+        particlePositions[j + 1] = y;
+        particlePositions[j + 4] = y - 0.4;
+        snowPositions[i * 3] =
+          particlePositions[j] + Math.sin(now * 0.0007 + i) * 0.35;
+        snowPositions[i * 3 + 1] = y;
+        snowPositions[i * 3 + 2] = particlePositions[j + 2];
+      }
+      rainGeometry.attributes.position.needsUpdate = true;
+      snowGeometry.attributes.position.needsUpdate = true;
+    }
     if (!paused) {
       simulation.update(dt * speed);
       elapsed += dt * speed;
@@ -440,6 +543,7 @@ export function createWorld(
   onCounts(simulation.counts());
   frame = requestAnimationFrame(tick);
   return {
+    setEnvironment: applyEnvironment,
     setPaused(v) {
       paused = v;
     },
@@ -467,6 +571,10 @@ export function createWorld(
         }
       });
       geometries.forEach((g) => g.dispose());
+      rainGeometry.dispose();
+      rainMaterial.dispose();
+      snowGeometry.dispose();
+      snowMaterial.dispose();
       labelTexture.dispose();
       materials.forEach((m) => m.dispose());
       renderer.dispose();
