@@ -1,0 +1,36 @@
+.page {
+  max-width: 1100px;
+  margin: auto;
+  padding: 24px;
+  color: #e8edf2;
+  background: #172537;
+  font: 16px/1.6 sans-serif;
+}
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 24px;
+  padding-bottom: 24px;
+}
+.wide,
+.banner,
+.phone {
+  position: relative;
+  background: linear-gradient(#304860, #839899);
+  overflow: hidden;
+}
+.wide {
+  aspect-ratio: 16 / 9;
+}
+.banner {
+  aspect-ratio: 2.1;
+}
+.phone {
+  width: min(100%, 390px);
+  aspect-ratio: 3 / 4;
+}
+.spacer {
+  height: 110vh;
+  padding-top: 80px;
+}

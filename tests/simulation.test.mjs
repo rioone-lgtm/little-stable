@@ -7,7 +7,7 @@ import {
   STALL_CAPACITY,
   trackPoint,
   TAU,
-} from '../lib/simulation.ts';
+} from '../lib/stable/simulation.ts';
 
 test('15 distinct bays and 10 permanent assignments', () => {
   assert.equal(STALL_CAPACITY, 15);

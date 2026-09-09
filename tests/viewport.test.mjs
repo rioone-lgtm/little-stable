@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { zoomAt, clampView } from '../lib/viewport.ts';
+import { zoomAt, clampView } from '../lib/stable/viewport.ts';
 const initial = { zoom: 1, x: 0, y: 0, halfWidth: 14, halfHeight: 24 };
 test('pinch preserves the point under the gesture and zooms back to full view', () => {
   const x = 0.4,

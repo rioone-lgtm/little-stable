@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createSimulation } from '../lib/simulation.ts';
-import { bodyDistance, blocksMove } from '../lib/traffic.ts';
+import { createSimulation } from '../lib/stable/simulation.ts';
+import { bodyDistance, blocksMove } from '../lib/stable/traffic.ts';
 
 test('body clearance accounts for noses, following and oncoming lanes', () => {
   const horse = { x: 0, z: 0, angle: 0 };
