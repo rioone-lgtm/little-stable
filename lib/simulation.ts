@@ -1,3 +1,4 @@
+import { blocksMove } from './traffic.ts';
 export type Activity = 'rest' | 'graze' | 'run';
 export type Point = { x: number; z: number };
 export type Horse = Point & {
@@ -40,10 +41,13 @@ export function trackPoint(angle: number, id = 0): Point {
 export function stall(id: number): Point {
   if (!Number.isInteger(id) || id < 0 || id >= STALL_CAPACITY)
     throw new RangeError('Unknown stall');
-  return { x: id < 8 ? -9.3 : -5.7, z: -9.1 + (id < 8 ? id : id - 8) * 2.6 };
+  return {
+    x: id < 8 ? -11.575 : -6.425,
+    z: -9.1 + (id < 8 ? id : id - 8) * 2.6,
+  };
 }
 export function stallAisle(id: number): Point {
-  return { x: -7.5, z: stall(id).z };
+  return { x: -9, z: stall(id).z };
 }
 export function createSimulation(seed = 9817, initialHour = 14) {
   let hour = initialHour;
@@ -85,9 +89,9 @@ export function createSimulation(seed = 9817, initialHour = 14) {
     value = (Math.imul(value, 1664525) + 1013904223) >>> 0;
     return value / 4294967296;
   };
-  const pasture = (): Point => ({
-    x: 2 + random() * 6,
-    z: -5 + random() * 10,
+  const pasture = (id: number): Point => ({
+    x: id % 2 === 0 ? 2.8 : 7.2,
+    z: -4 + Math.floor(id / 2) * 2,
   });
   const horses: Horse[] = Array.from({ length: 10 }, (_, id) => {
     const state: Activity =
@@ -119,7 +123,7 @@ export function createSimulation(seed = 9817, initialHour = 14) {
       state === 'rest'
         ? stall(id)
         : state === 'graze'
-          ? pasture()
+          ? pasture(id)
           : trackPoint(trackAngle, id);
     return {
       id,
@@ -132,7 +136,14 @@ export function createSimulation(seed = 9817, initialHour = 14) {
           ? id < 8
             ? Math.PI / 2
             : -Math.PI / 2
-          : random() * TAU,
+          : state === 'graze'
+            ? id % 2 === 0
+              ? -Math.PI / 2
+              : Math.PI / 2
+            : Math.atan2(
+                trackPoint(trackAngle + 0.001, id).x - p.x,
+                trackPoint(trackAngle + 0.001, id).z - p.z,
+              ),
       phase: random() * TAU,
       timer: duration(id, state) * (1 + random()),
       trackAngle,
@@ -155,39 +166,74 @@ export function createSimulation(seed = 9817, initialHour = 14) {
       h.lapEnd = Math.PI + TAU * (1 + Math.floor(random() * 2));
     }
     if (h.state === 'rest') h.angle = h.id < 8 ? Math.PI / 2 : -Math.PI / 2;
+    if (h.state === 'graze')
+      h.angle = h.id % 2 === 0 ? -Math.PI / 2 : Math.PI / 2;
   };
+  const transfers = new Map<number, Activity>();
   const travel = (h: Horse, destination: Activity) => {
-    // One central aisle serves 15 dedicated bays. Both track rails have a gate at z=0.
-    const junction = { x: -2.5, z: 0 },
-      gate = { x: 1, z: 0 };
-    const exit: Point[] =
-      h.zone === 'rest'
-        ? [
-            stallAisle(h.id),
-            { x: -7.5, z: 11.3 },
-            { x: -2.5, z: 11.3 },
-            junction,
-          ]
-        : h.zone === 'graze'
-          ? [gate, junction]
-          : [junction];
+    // Reserve transfers through the shared junctions. Horses waiting for a
+    // transfer remain in their bay/pasture or complete another track lap.
+    if (!transfers.has(h.id)) transfers.set(h.id, destination);
+    if (
+      horses.some((other) => other.state === 'walk') ||
+      transfers.keys().next().value !== h.id
+    )
+      return false;
+    destination = transfers.get(h.id)!;
+    transfers.delete(h.id);
+    // Keep right: outbound uses west aisle / south apron / east connector lane.
     const target =
       destination === 'rest'
         ? stall(h.id)
         : destination === 'graze'
-          ? pasture()
+          ? pasture(h.id)
           : trackPoint(Math.PI, h.id);
+    const exit: Point[] =
+      h.zone === 'rest'
+        ? [
+            ...(h.id < 8
+              ? [{ x: -9.6, z: h.z }]
+              : [
+                  { x: -8.5, z: h.z },
+                  { x: -9.6, z: h.z + 1.3 },
+                ]),
+            { x: -9.6, z: 12.6 },
+            { x: -2.9, z: 12.6 },
+            { x: -2.9, z: 0.6 },
+          ]
+        : h.zone === 'graze'
+          ? [
+              { x: 5, z: h.z },
+              { x: 5, z: 1 },
+              { x: 1.3, z: 1 },
+              { x: 0.5, z: 1 },
+              { x: 0.5, z: -0.6 },
+            ]
+          : [];
     const entry: Point[] =
       destination === 'rest'
-        ? [{ x: -2.5, z: 11.3 }, { x: -7.5, z: 11.3 }, stallAisle(h.id), target]
+        ? [
+            { x: -4.1, z: -0.6 },
+            { x: -4.1, z: 11.4 },
+            { x: -8.5, z: 11.4 },
+            { x: -8.5, z: target.z },
+            target,
+          ]
         : destination === 'graze'
-          ? [gate, target]
+          ? [
+              { x: 0.5, z: 0.6 },
+              { x: 0.5, z: -1 },
+              { x: 5, z: -1 },
+              { x: 5, z: target.z },
+              target,
+            ]
           : [target];
     h.destination = destination;
     h.route = [...exit, ...entry];
     h.state = 'walk';
+    return true;
   };
-  function update(dt: number) {
+  function step(dt: number) {
     if (!Number.isFinite(dt) || dt < 0)
       throw new Error('Invalid simulation timestep');
     if (dt === 0) return;
@@ -196,11 +242,38 @@ export function createSimulation(seed = 9817, initialHour = 14) {
       if (h.state === 'walk') {
         let remaining = dt * (1.1 + h.id * 0.025);
         while (h.route.length && remaining > 0) {
+          const holding =
+            (Math.abs(h.x + 2.9) < 0.001 && Math.abs(h.z - 0.6) < 0.001) ||
+            (Math.abs(h.x - 1.3) < 0.001 && Math.abs(h.z - 1) < 0.001);
+          if (
+            holding &&
+            horses.some(
+              (other) =>
+                other.state === 'run' &&
+                other.x < 0 &&
+                other.z > -2 &&
+                other.z < 3.5,
+            )
+          )
+            break;
           const p = h.route[0],
             dx = p.x - h.x,
             dz = p.z - h.z,
             d = Math.hypot(dx, dz);
-          if (d > 0.001) h.angle = Math.atan2(dx, dz);
+          const angle = d > 0.001 ? Math.atan2(dx, dz) : h.angle;
+          const advance = Math.min(d, remaining);
+          const next = {
+            x: d > 0 ? h.x + (dx / d) * advance : h.x,
+            z: d > 0 ? h.z + (dz / d) * advance : h.z,
+            angle,
+          };
+          if (
+            horses.some(
+              (other) => other.id !== h.id && blocksMove(h, next, other),
+            )
+          )
+            break;
+          h.angle = angle;
           if (d <= remaining) {
             h.x = p.x;
             h.z = p.z;
@@ -214,10 +287,25 @@ export function createSimulation(seed = 9817, initialHour = 14) {
         }
         if (!h.route.length) enter(h);
       } else if (h.state === 'run') {
+        const crossing = horses.some(
+          (other) =>
+            other.state === 'walk' &&
+            other.x > -3.1 &&
+            other.x < 5.1 &&
+            Math.abs(other.z) < 3,
+        );
+        // Yield before the gate, leaving enough space for the crossing horse.
+        if (crossing && h.x < 0 && h.z > 3.5 && h.z < 3.8) continue;
         const velocity =
           (3.0 + h.id * 0.055) *
           (period() === 'morning' ? 1.15 : period() === 'night' ? 0.85 : 1);
         const r = TRACK.radius + ((h.id % 3) - 1) * 0.28;
+        const before = {
+          x: h.x,
+          z: h.z,
+          angle: h.angle,
+          trackAngle: h.trackAngle,
+        };
         h.trackAngle = Math.min(
           h.lapEnd,
           h.trackAngle + (dt * velocity * TAU) / (4 * TRACK.straight + TAU * r),
@@ -225,12 +313,24 @@ export function createSimulation(seed = 9817, initialHour = 14) {
         Object.assign(h, trackPoint(h.trackAngle, h.id));
         const ahead = trackPoint(h.trackAngle + 0.001, h.id);
         h.angle = Math.atan2(ahead.x - h.x, ahead.z - h.z);
+        if (
+          horses.some(
+            (other) => other.id !== h.id && blocksMove(before, h, other),
+          )
+        ) {
+          Object.assign(h, before);
+          continue;
+        }
         if (h.trackAngle >= h.lapEnd) {
-          const next = choose(h.id);
+          const next = transfers.get(h.id) ?? choose(h.id);
           if (next === 'run') h.lapEnd += TAU;
-          else travel(h, next);
+          else if (!travel(h, next)) h.lapEnd += TAU;
         }
       } else {
+        if (transfers.has(h.id)) {
+          travel(h, transfers.get(h.id)!);
+          continue;
+        }
         h.timer -= dt;
         if (h.timer <= 0) {
           const next = choose(h.id);
@@ -238,6 +338,15 @@ export function createSimulation(seed = 9817, initialHour = 14) {
           else travel(h, next);
         }
       }
+    }
+  }
+  function update(dt: number) {
+    if (!Number.isFinite(dt) || dt < 0)
+      throw new Error('Invalid simulation timestep');
+    while (dt > 1e-9) {
+      const tick = Math.min(dt, 1 / 30);
+      step(tick);
+      dt -= tick;
     }
   }
   return {
@@ -250,6 +359,7 @@ export function createSimulation(seed = 9817, initialHour = 14) {
       hour = next;
       if (previous !== period())
         for (const h of horses) {
+          transfers.delete(h.id);
           h.timer = Math.min(h.timer, 2 + h.id);
           if (h.state === 'run')
             h.lapEnd =

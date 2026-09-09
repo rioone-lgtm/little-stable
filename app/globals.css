@@ -590,3 +590,169 @@ h1 span {
     display: none;
   }
 }
+
+/* All controls belong to the diorama surface. */
+.stable-app {
+  padding: 12px;
+  height: 100svh;
+  min-height: 440px;
+}
+.world-panel {
+  margin: 0;
+  min-height: 0;
+}
+.world-panel > .weather {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  padding: 8px 12px;
+  background: #edf4e6e8;
+  border-radius: 10px;
+  max-width: 48%;
+}
+.scene-caption {
+  top: 18px;
+  left: 18px;
+  max-width: 43%;
+}
+.view-label {
+  top: 50px;
+  left: 18px;
+  right: auto;
+}
+.toolbar {
+  position: absolute;
+  bottom: 28px;
+  left: 18px;
+  right: 122px;
+  min-height: 0;
+  margin: 0;
+  padding: 8px 10px;
+  gap: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  background: #edf4e6ed;
+  border-radius: 10px;
+}
+.population {
+  padding-right: 12px;
+  gap: 8px;
+}
+.population strong {
+  font-size: 27px;
+}
+.population > span {
+  font-size: 12px;
+}
+.activities {
+  gap: 12px;
+}
+.activities > div {
+  gap: 5px;
+}
+.controls {
+  width: auto;
+  margin: 0 0 0 auto;
+}
+.zoom-controls {
+  right: 18px;
+  bottom: 28px;
+  gap: 8px;
+}
+.zoom-controls .pause {
+  min-width: 44px !important;
+  width: 44px !important;
+  height: 44px !important;
+  padding: 0 !important;
+}
+.scene-footer {
+  bottom: 7px;
+  left: 18px;
+  right: 18px;
+}
+.scene-footer > span {
+  display: none;
+}
+.stable-app[data-night='true'] .world-panel > .weather,
+.stable-app[data-night='true'] .toolbar {
+  background: #243643ed;
+}
+@media (max-width: 600px) {
+  .stable-app {
+    padding: 6px;
+    min-height: 400px;
+  }
+  .world-panel > .weather {
+    top: 10px;
+    right: 10px;
+    padding: 7px;
+    gap: 4px;
+    max-width: 49%;
+  }
+  .scene-caption {
+    display: none;
+  }
+  .view-label {
+    top: 13px;
+    left: 10px;
+    max-width: 44%;
+    line-height: 1.5;
+  }
+  .view-label > svg {
+    display: none;
+  }
+  .toolbar {
+    left: 10px;
+    right: 114px;
+    bottom: 29px;
+    display: flex;
+    column-gap: 8px;
+    row-gap: 3px;
+    padding: 6px 8px;
+    min-height: 0;
+  }
+  .population {
+    border: 0;
+    padding: 0;
+  }
+  .population strong {
+    font-size: 23px;
+  }
+  .population > span {
+    display: none;
+  }
+  .activities {
+    order: 3;
+    width: 100%;
+    justify-content: flex-start;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .activities > div {
+    font-size: 12px;
+    gap: 4px;
+  }
+  .activities svg {
+    display: none;
+  }
+  .activities b {
+    font-size: 14px;
+  }
+  .controls {
+    margin-left: auto;
+    width: auto;
+  }
+  .controls .control {
+    width: 44px !important;
+    height: 44px !important;
+  }
+  .zoom-controls {
+    right: 10px;
+    bottom: 29px;
+  }
+  .scene-footer {
+    left: 10px;
+    bottom: 6px;
+  }
+}

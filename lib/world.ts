@@ -49,6 +49,9 @@ export function createWorld(
   const boxGeometry = new THREE.BoxGeometry(1, 1, 1);
   const material = new THREE.MeshLambertMaterial();
   const blocks: Block[] = [];
+  let widening = false;
+  const widenX = (x: number) =>
+    x < -7.5 ? x - 2.275 : x > -7.5 ? x - 0.725 : x - 1.5;
   function box(
     x: number,
     y: number,
@@ -61,6 +64,12 @@ export function createWorld(
     rotation = 0,
   ) {
     const object = new THREE.Object3D();
+    if (widening) {
+      const left = widenX(x - w / 2),
+        right = widenX(x + w / 2);
+      x = (left + right) / 2;
+      w = right - left;
+    }
     object.position.set(x, y, z);
     object.scale.set(w, h, d);
     object.rotation.y = rotation;
@@ -69,14 +78,15 @@ export function createWorld(
     return object;
   }
 
-  box(0, -0.65, 0, 25, 1.3, 27, '#99866b');
-  box(0, -0.05, 0, 25, 0.35, 27, '#8c9d69');
-  box(0, -1.28, 0, 24.5, 0.22, 26.5, '#776b56');
-  box(-7.5, 0.18, 0, 6.9, 0.1, 22, '#c6bd9e');
-  box(-7.5, 0.2, 0, 1.55, 0.06, 22.8, '#aba798');
-  box(-5, 0.18, 11.3, 6.5, 0.08, 1.5, '#c5bda5');
-  box(-2.5, 0.18, 5.65, 1.4, 0.08, 12.6, '#c5bda5');
-  box(-0.6, 0.19, 0, 5, 0.08, 1.6, '#c5bda5');
+  box(-1, -0.65, 0, 27, 1.3, 27, '#99866b');
+  box(-1, -0.05, 0, 27, 0.35, 27, '#8c9d69');
+  box(-1, -1.28, 0, 26.5, 0.22, 26.5, '#776b56');
+  box(-9, 0.18, 0, 8.45, 0.1, 22, '#c6bd9e');
+  box(-9, 0.2, 0, 3.1, 0.06, 24, '#aba798');
+  box(-6.25, 0.18, 12, 8.3, 0.08, 3, '#c5bda5');
+  box(-3.5, 0.18, 5.7, 2.8, 0.08, 13.5, '#c5bda5');
+  box(-0.6, 0.19, 0, 6, 0.08, 3.2, '#c5bda5');
+  widening = true;
   // A single long cream stable, with eight bays west and seven east of its aisle.
   box(-10.65, 1.45, 0, 0.18, 2.6, 21.2, '#cac9ad');
   box(-4.35, 0.8, 0, 0.18, 1.3, 21.2, '#c4c5a7');
@@ -95,7 +105,7 @@ export function createWorld(
     ctx.fillText(String(i + 1).padStart(2, '0'), i * 64 + 32, 32);
   const labelTexture = new THREE.CanvasTexture(labelCanvas);
   for (let id = 0; id < STALL_CAPACITY; id++) {
-    const p = stall(id),
+    const p = { x: id < 8 ? -9.3 : -5.7, z: stall(id).z },
       left = id < 8,
       wallX = left ? -10.55 : -4.45,
       frontX = left ? -8.25 : -6.75;
@@ -118,7 +128,7 @@ export function createWorld(
         side: THREE.DoubleSide,
       }),
     );
-    plate.position.set(frontX, 2.6, p.z);
+    plate.position.set(widenX(frontX), 2.6, p.z);
     plate.rotation.y = Math.PI / 2;
     scene.add(plate);
   }
@@ -135,6 +145,8 @@ export function createWorld(
       3,
     ),
   );
+  const rp = roofGeo.getAttribute('position');
+  for (let i = 0; i < rp.count; i++) rp.setX(i, widenX(rp.getX(i)));
   roofGeo.computeVertexNormals();
   scene.add(
     new THREE.Mesh(
@@ -154,6 +166,7 @@ export function createWorld(
     box(-8.2, 3.98, z, 0.85, 0.55, 1.6, '#c2bda9');
     box(-8.2, 4.31, z, 1.15, 0.14, 1.95, '#666d69');
   }
+  widening = false;
   function fenceSegment(a: THREE.Vector2, b: THREE.Vector2) {
     const dx = b.x - a.x,
       dz = b.y - a.y,
@@ -206,7 +219,7 @@ export function createWorld(
   // The infield is the sole grazing area; both railings open at the stable crossing.
   for (const offset of [-1.25, 1.25])
     for (let i = 0; i < 96; i++) {
-      if (i < 2 || i > 93) continue;
+      if (i < 3 || i > 92) continue;
       const points = [i, i + 1].map((n) => {
         const angle = Math.PI + (n / 96) * TAU,
           p = trackPoint(angle, 1),
@@ -230,8 +243,8 @@ export function createWorld(
       flatShading: true,
     });
   const treePositions = [
-    [-11.5, -11.9],
-    [-11.5, 11.9],
+    [-13.3, -11.9],
+    [-13.3, 11.9],
     [11.3, -11.7],
     [11.4, 11.7],
     [1.4, 11.8],
@@ -392,7 +405,7 @@ export function createWorld(
   const lamps = new THREE.Group();
   for (const z of [-7, 7]) {
     const lamp = new THREE.PointLight('#ffcc7b', 10, 7, 2);
-    lamp.position.set(-7.5, 2.6, z);
+    lamp.position.set(-9, 2.6, z);
     lamps.add(lamp);
   }
   scene.add(lamps);
@@ -438,7 +451,7 @@ export function createWorld(
   applyEnvironment(environment);
   // Derive the fitted view from projected bounds; camera orientation never changes.
   const bounds = [];
-  for (const x of [-12.5, 12.5])
+  for (const x of [-14.5, 12.5])
     for (const y of [-1.5, 4.5])
       for (const z of [-13.5, 13.5])
         bounds.push(

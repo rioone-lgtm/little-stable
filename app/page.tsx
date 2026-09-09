@@ -9,15 +9,7 @@ import {
   Flag,
   ArrowUpRight,
 } from 'lucide-react';
-import {
-  Moon,
-  Cloud,
-  CloudRain,
-  Snowflake,
-  Plus,
-  Minus,
-  Maximize,
-} from 'lucide-react';
+import { Moon, Cloud, CloudRain, Snowflake, Maximize } from 'lucide-react';
 import { watchEnvironment, type Environment } from '@/lib/environment';
 import { Button } from '@/components/ui/button';
 import type { StableWorld } from '@/lib/world';
@@ -74,18 +66,16 @@ export default function Home() {
       className="stable-app"
       data-night={environment ? environment.daylight < 0.3 : false}
     >
-      <header className="masthead">
-        <div className="brand">
-          <span className="brand-mark">
-            <House size={23} strokeWidth={1.6} />
-          </span>
-          <div>
-            <p className="eyebrow">A LITTLE WORLD OF HORSES</p>
-            <h1>
-              Little Stable<span>小さな厩舎</span>
-            </h1>
-          </div>
-        </div>
+      <section
+        className="world-panel"
+        aria-label="固定クォータービューの馬の箱庭"
+      >
+        <div
+          className="scene"
+          ref={mount}
+          role="img"
+          aria-label="10頭のローポリゴンの馬が厩舎で休み、牧草地で草を食べ、楕円の競馬場を走る3D箱庭"
+        />
         <div className="weather">
           <WeatherIcon size={20} />
           <div>
@@ -103,17 +93,7 @@ export default function Home() {
             </small>
           </div>
         </div>
-      </header>
-      <section
-        className="world-panel"
-        aria-label="固定クォータービューの馬の箱庭"
-      >
-        <div
-          className="scene"
-          ref={mount}
-          role="img"
-          aria-label="10頭のローポリゴンの馬が厩舎で休み、牧草地で草を食べ、楕円の競馬場を走る3D箱庭"
-        />
+
         <div className="scene-caption">
           <span className="live-dot" />
           <span>
@@ -122,26 +102,21 @@ export default function Home() {
         </div>
         <div className="view-label">
           <ArrowUpRight size={16} />{' '}
-          <span className="pinch-hint">2本指で拡大・縮小</span>
+          <span className="pinch-hint">2本指で拡大・縮小・移動</span>
         </div>
-        <div className="zoom-controls" aria-label="箱庭の拡大・縮小">
+        <div className="zoom-controls" aria-label="再生と表示の操作">
           <Button
-            variant="outline"
-            size="icon"
             disabled={!!status}
-            aria-label="縮小"
-            onClick={() => world.current?.zoomBy(1 / 1.25)}
+            className="control pause"
+            aria-label={paused ? '再生' : '一時停止'}
+            aria-pressed={paused}
+            onClick={() => {
+              const value = !paused;
+              setPaused(value);
+              world.current?.setPaused(value);
+            }}
           >
-            <Minus />
-          </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            disabled={!!status}
-            aria-label="拡大"
-            onClick={() => world.current?.zoomBy(1.25)}
-          >
-            <Plus />
+            {paused ? <Play size={17} /> : <Pause size={17} />}
           </Button>
           <Button
             variant="outline"
@@ -164,66 +139,52 @@ export default function Home() {
           </a>
           <span>10 HORSES · ONE LITTLE HOME</span>
         </div>
+        <footer className="toolbar">
+          <div className="population">
+            <strong>
+              10<span>頭</span>
+            </strong>
+            <span>暮らしている馬</span>
+          </div>
+          <div className="activities" aria-label="馬の現在の行動">
+            <div>
+              <House />
+              <span>休憩</span>
+              <b>{counts.rest}</b>
+            </div>
+            <div>
+              <Leaf />
+              <span>採食</span>
+              <b>{counts.graze}</b>
+            </div>
+            <div>
+              <Flag />
+              <span>走行</span>
+              <b>{counts.run}</b>
+            </div>
+            <div className="walking">
+              <span>移動中</span>
+              <b>{counts.walk}</b>
+            </div>
+          </div>
+          <div className="controls">
+            <Button
+              disabled={!!status}
+              variant="outline"
+              className="control"
+              aria-pressed={fast}
+              onClick={() => {
+                const value = !fast;
+                setFast(value);
+                world.current?.setSpeed(value ? 2 : 1);
+              }}
+            >
+              {fast ? '2×' : '1×'}
+              <span>速度</span>
+            </Button>
+          </div>
+        </footer>
       </section>
-      <footer className="toolbar">
-        <div className="population">
-          <strong>
-            10<span>頭</span>
-          </strong>
-          <span>暮らしている馬</span>
-        </div>
-        <div className="activities" aria-label="馬の現在の行動">
-          <div>
-            <House />
-            <span>休憩</span>
-            <b>{counts.rest}</b>
-          </div>
-          <div>
-            <Leaf />
-            <span>採食</span>
-            <b>{counts.graze}</b>
-          </div>
-          <div>
-            <Flag />
-            <span>走行</span>
-            <b>{counts.run}</b>
-          </div>
-          <div className="walking">
-            <span>移動中</span>
-            <b>{counts.walk}</b>
-          </div>
-        </div>
-        <div className="controls">
-          <Button
-            disabled={!!status}
-            variant="outline"
-            className="control"
-            aria-pressed={fast}
-            onClick={() => {
-              const value = !fast;
-              setFast(value);
-              world.current?.setSpeed(value ? 2 : 1);
-            }}
-          >
-            {fast ? '2×' : '1×'}
-            <span>速度</span>
-          </Button>
-          <Button
-            disabled={!!status}
-            className="control pause"
-            aria-label={paused ? '再生' : '一時停止'}
-            aria-pressed={paused}
-            onClick={() => {
-              const value = !paused;
-              setPaused(value);
-              world.current?.setPaused(value);
-            }}
-          >
-            {paused ? <Play size={17} /> : <Pause size={17} />}
-            <span>{paused ? '再生' : '一時停止'}</span>
-          </Button>
-        </div>
-      </footer>
     </main>
   );
 }

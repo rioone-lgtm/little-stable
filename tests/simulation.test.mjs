@@ -68,16 +68,13 @@ test('all rail crossings use the opening and bay partitions are never crossed', 
       const prev = before[i];
       for (const radius of [4.75, 7.25]) {
         if ((distance(prev) - radius) * (distance(h) - radius) < 0) {
-          assert.ok(
-            Math.abs(h.z) < 0.01 && h.x < 1.1,
-            'cross at the west gate',
-          );
+          assert.ok(Math.abs(h.z) < 1.3 && h.x < 1.1, 'cross at the west gate');
         }
       }
       if (
-        (h.x < -8.25 || h.x > -6.75) &&
-        h.x < -4.3 &&
-        prev.x < -4.3 &&
+        (h.x < -10.225 || h.x > -7.775) &&
+        h.x < -5.05 &&
+        prev.x < -5.05 &&
         h.z < 10.5 &&
         prev.z < 10.5
       ) {
