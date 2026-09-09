@@ -158,21 +158,40 @@ export function createWorld(
     box(-10.65, 1.45, 0, 0.18, 2.6, geometry.length + 0.4, '#cac9ad');
     box(-4.35, 0.8, 0, 0.18, 1.3, geometry.length + 0.4, '#c4c5a7');
     box(-7.5, 1.4, -geometry.length / 2 - 0.15, 6.4, 2.5, 0.18, '#d2cdb8');
+    // The bay signs are read close up, at a grazing angle. Three things kept them
+    // muddy: the cell was square while the sign is not (the text came out
+    // stretched), there were only 64 px to a cell, and the canvas was sampled as
+    // linear so the ink washed out. Fixed below; the sign itself is unchanged.
+    const plateSize = { width: 0.62, height: 0.38 };
     const labelCanvas = document.createElement('canvas');
     const labelColumns = Math.max(16, config.stalls.capacity);
-    labelCanvas.width = labelColumns * 64;
-    labelCanvas.height = 64;
+    // Sharper per cell, but never a strip a modest GPU would refuse.
+    const cellWidth = Math.min(160, Math.max(48, Math.floor(4096 / labelColumns)));
+    const cellHeight = Math.round(
+      (cellWidth * plateSize.height) / plateSize.width,
+    );
+    labelCanvas.width = labelColumns * cellWidth;
+    labelCanvas.height = cellHeight;
     const ctx = labelCanvas.getContext('2d')!;
     ctx.fillStyle = '#53584f';
-    ctx.fillRect(0, 0, labelCanvas.width, 64);
-    ctx.font = 'bold 38px sans-serif';
+    ctx.fillRect(0, 0, labelCanvas.width, cellHeight);
+    ctx.font = `bold ${Math.round(cellHeight * 0.6)}px sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = '#fff5d9';
     config.stalls.layout.forEach((bay, i) =>
-      ctx.fillText(bay.label, i * 64 + 32, 32, 60),
+      ctx.fillText(
+        bay.label,
+        i * cellWidth + cellWidth / 2,
+        cellHeight / 2,
+        cellWidth * 0.86,
+      ),
     );
     const labelTexture = new THREE.CanvasTexture(labelCanvas);
+    // Draw the ink at the value it was written at, not a linear reading of it.
+    labelTexture.colorSpace = THREE.SRGBColorSpace;
+    // The signs face along the aisle, so the camera almost always sees them edge-on.
+    labelTexture.anisotropy = renderer.capabilities.getMaxAnisotropy();
     rollback.push(() => labelTexture.dispose());
     for (let id = 0; id < config.stalls.capacity; id++) {
       const bay = config.stalls.layout[id];
@@ -200,7 +219,7 @@ export function createWorld(
         box(frontX, 0.95, p.z + dz, 0.12, 1.45, 0.4, '#929980');
       box(wallX, 1.85, p.z, 0.06, 0.55, 0.8, '#65796d');
       box(p.x, 0.39, p.z - 0.85, 0.75, 0.25, 0.4, '#c6b675');
-      const geo = new THREE.PlaneGeometry(0.62, 0.38);
+      const geo = new THREE.PlaneGeometry(plateSize.width, plateSize.height);
       const uv = geo.getAttribute('uv');
       for (let k = 0; k < uv.count; k++)
         uv.setX(k, (id + uv.getX(k)) / labelColumns);
