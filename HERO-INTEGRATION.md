@@ -61,6 +61,7 @@ export type WorldOptions = {
   offset?: { x?: number; y?: number };
   background?: 'environment' | 'transparent' | { color: string };
   interactive?: boolean;
+  revealRoof?: boolean;
   autoPause?: boolean;
   minDaylight?: number;
   reducedMotion?: 'throttle' | 'static';
@@ -76,6 +77,7 @@ export type WorldOptions = {
 | offset | x:0 / y:0 | x:0 / y:0.06 |
 | background | environment | transparent |
 | interactive | true | false |
+| revealRoof | false | false（箱庭だけを見せる面では true） |
 | autoPause | false | true |
 | minDaylight | 0 | 0.25 |
 | reducedMotion | throttle | static |
@@ -86,6 +88,12 @@ export type WorldOptions = {
 offsetは**枠の幅・高さに対する割合**です。正のxは箱庭を右、正のyは下へ動かします。
 coverは投影済みの箱庭境界から `min(fitY, fitX/aspect)` で計算し、操作ズーム1〜3とは独立しています。
 `interactive:false` ではポインタ／ホイールのリスナを登録せず、ズームAPIはno-opです。
+
+`revealRoof:true` にすると、**屋根を押したときだけ**屋根が薄くなり、厩舎の中が見えます。
+もう一度押すと戻ります。薄くなっても屋根は描かれたままなので、同じ場所をもう一度押せます。
+屋根以外を押しても何も起きません。マウスのときは屋根の上でカーソルが `pointer` に変わります。
+このオプションは `interactive` とは独立で、`interactive:false` のままでも屋根だけは押せます
+（そのときキャンバスは `pointer-events` を受け取ります）。
 ヒーローの装飾キャンバス層自体もpointer-events:noneで、ページスクロールとブラウザのピンチ拡大を奪いません。
 画面外ではrAFの予約を取り消します。復帰時の最初のdtは0で、経過時間をシミュレーションへ加算しません。
 reduced-motionの変更にも追従します。staticはアニメーションを止め、サイズ・環境が変わった場合だけ1フレーム更新します。

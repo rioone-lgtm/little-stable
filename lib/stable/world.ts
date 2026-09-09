@@ -24,6 +24,8 @@ export type WorldOptions = {
   offset?: { x?: number; y?: number };
   background?: 'environment' | 'transparent' | { color: string };
   interactive?: boolean;
+  /** Let a click on the roof fade it, so the bays underneath can be seen. */
+  revealRoof?: boolean;
   autoPause?: boolean;
   minDaylight?: number;
   reducedMotion?: 'throttle' | 'static';
@@ -84,6 +86,12 @@ export function createWorld(
       material.dispose();
     });
     const blocks: Block[] = [];
+    // The roof is collected apart from the other static boxes so that it can be
+    // faded on click without touching the rest of the farm.
+    const roofBlocks: Block[] = [];
+    const roof = new THREE.Group();
+    scene.add(roof);
+    let roofing = false;
     let widening = false;
     const widenX = (x: number) =>
       x < -7.5 ? x - 2.275 : x > -7.5 ? x - 0.725 : x - 1.5;
@@ -109,7 +117,10 @@ export function createWorld(
       object.scale.set(w, h, d);
       object.rotation.y = rotation;
       parent?.add(object);
-      blocks.push({ object, color: new THREE.Color(color) });
+      (roofing ? roofBlocks : blocks).push({
+        object,
+        color: new THREE.Color(color),
+      });
       return object;
     }
 
@@ -126,17 +137,22 @@ export function createWorld(
     );
     box(-9, 0.18, 0, 8.45, 0.1, geometry.length + 1.2, '#c6bd9e');
     box(-9, 0.2, 0, 3.1, 0.06, geometry.entranceZ * 2, '#aba798');
-    box(-6.8, 0.18, geometry.entranceZ, 6.8, 0.08, 1.5, '#c5bda5');
+    // The three paths from the aisle to the track meet flush. Each junction is
+    // sized from the one it joins, so no arm overshoots the other:
+    //   crossing  x -10.2 .. -2.8   ends where the spur is widest
+    //   spur      x  -4.2 .. -2.8   runs down to the near edge of the gate path
+    //   gate      x  -4.2 ..  0.9   starts under the spur, ends past the inner rail
+    box(-6.5, 0.18, geometry.entranceZ, 7.4, 0.08, 1.5, '#c5bda5');
     box(
       -3.5,
       0.18,
-      (geometry.entranceZ - 0.6) / 2,
+      (geometry.entranceZ - 0.35) / 2,
       1.4,
       0.08,
-      geometry.entranceZ + 1.5,
+      geometry.entranceZ + 1.25,
       '#c5bda5',
     );
-    box(-0.6, 0.19, 0, 6, 0.08, 1.6, '#c5bda5');
+    box(-1.65, 0.19, 0, 5.1, 0.08, 1.6, '#c5bda5');
     widening = true;
     // A single long cream stable, with eight bays west and seven east of its aisle.
     box(-10.65, 1.45, 0, 0.18, 2.6, geometry.length + 0.4, '#cac9ad');
@@ -200,6 +216,7 @@ export function createWorld(
       scene.add(plate);
     }
     // Gray-brown tiled gable, with the camera-facing half cut away to expose the bays.
+    roofing = true;
     const roofGeo = new THREE.BufferGeometry();
     roofGeo.setAttribute(
       'position',
@@ -221,15 +238,11 @@ export function createWorld(
       );
     }
     roofGeo.computeVertexNormals();
-    scene.add(
-      new THREE.Mesh(
-        roofGeo,
-        new THREE.MeshLambertMaterial({
-          color: '#827e73',
-          side: THREE.DoubleSide,
-        }),
-      ),
-    );
+    const roofPanelMaterial = new THREE.MeshLambertMaterial({
+      color: '#827e73',
+      side: THREE.DoubleSide,
+    });
+    roof.add(new THREE.Mesh(roofGeo, roofPanelMaterial));
     box(-7.5, 4.04, 0, 0.2, 0.15, geometry.length + 1.5, '#555b59');
     for (let i = 0; i < Math.ceil((geometry.length + 1.1) / 0.51); i++)
       box(
@@ -246,6 +259,7 @@ export function createWorld(
       box(-8.2, 3.98, z, 0.85, 0.55, 1.6, '#c2bda9');
       box(-8.2, 4.31, z, 1.15, 0.14, 1.95, '#666d69');
     }
+    roofing = false;
     widening = false;
     function fenceSegment(a: THREE.Vector2, b: THREE.Vector2) {
       const dx = b.x - a.x,
@@ -365,6 +379,20 @@ export function createWorld(
     });
     scene.add(staticMesh);
     blocks.length = 0;
+    // Its own material: fading the roof must not fade the rest of the farm.
+    const roofMaterial = new THREE.MeshLambertMaterial();
+    const roofMesh = new THREE.InstancedMesh(
+      boxGeometry,
+      roofMaterial,
+      roofBlocks.length,
+    );
+    roofBlocks.forEach((b, i) => {
+      b.object.updateMatrixWorld();
+      roofMesh.setMatrixAt(i, b.object.matrixWorld);
+      roofMesh.setColorAt(i, b.color);
+    });
+    roof.add(roofMesh);
+    roofBlocks.length = 0;
     let environment =
       options.initialEnvironment ??
       environmentAt(Date.now(), null, false, config.farm.location.timezone);
@@ -632,10 +660,45 @@ export function createWorld(
       );
       projectView();
     }
+    // Clicking the roof fades it, so the bays underneath become visible.
+    // Clicking it again puts it back. It stays faintly drawn while open, so the
+    // same click target is still there — nothing else in the scene reacts.
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+    let roofOpen = false;
+    function roofUnder(event: { clientX: number; clientY: number }) {
+      const rect = host.getBoundingClientRect();
+      if (!rect.width || !rect.height) return false;
+      pointer.set(
+        ((event.clientX - rect.left) / rect.width) * 2 - 1,
+        1 - ((event.clientY - rect.top) / rect.height) * 2,
+      );
+      raycaster.setFromCamera(pointer, camera);
+      return raycaster.intersectObjects(roof.children, false).length > 0;
+    }
+    function setRoofOpen(open: boolean) {
+      roofOpen = open;
+      for (const m of [roofPanelMaterial, roofMaterial]) {
+        m.transparent = open;
+        m.opacity = open ? 0.14 : 1;
+        // Without this the faded roof still hides what is behind it.
+        m.depthWrite = !open;
+        m.needsUpdate = true;
+      }
+      // The still mode only draws on demand, so ask for the frame.
+      wake();
+    }
+    function roofClick(event: MouseEvent) {
+      if (roofUnder(event)) setRoofOpen(!roofOpen);
+    }
+    function roofHover(event: PointerEvent) {
+      if (event.pointerType !== 'mouse') return;
+      canvas.style.cursor = roofUnder(event) ? 'pointer' : '';
+    }
     const canvas = renderer.domElement;
     canvas.style.cssText =
       'display:block;width:100%;height:100%;' +
-      (interactive ? '' : 'pointer-events:none;');
+      (interactive || options.revealRoof ? '' : 'pointer-events:none;');
     if (interactive) {
       canvas.addEventListener('pointerdown', pointerDown);
       canvas.addEventListener('pointermove', pointerMove);
@@ -652,6 +715,15 @@ export function createWorld(
         canvas.removeEventListener('lostpointercapture', pointerUp);
         canvas.removeEventListener('wheel', wheel);
         window.removeEventListener('blur', clearPointers);
+      });
+    }
+    if (options.revealRoof) {
+      canvas.addEventListener('click', roofClick);
+      canvas.addEventListener('pointermove', roofHover);
+      rollback.push(() => {
+        canvas.removeEventListener('click', roofClick);
+        canvas.removeEventListener('pointermove', roofHover);
+        canvas.style.cursor = '';
       });
     }
     function resize() {
