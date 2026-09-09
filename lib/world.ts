@@ -83,9 +83,9 @@ export function createWorld(
   box(-1, -1.28, 0, 26.5, 0.22, 26.5, '#776b56');
   box(-9, 0.18, 0, 8.45, 0.1, 22, '#c6bd9e');
   box(-9, 0.2, 0, 3.1, 0.06, 24, '#aba798');
-  box(-6.25, 0.18, 12, 8.3, 0.08, 3, '#c5bda5');
-  box(-3.5, 0.18, 5.7, 2.8, 0.08, 13.5, '#c5bda5');
-  box(-0.6, 0.19, 0, 6, 0.08, 3.2, '#c5bda5');
+  box(-6.8, 0.18, 12, 6.8, 0.08, 1.5, '#c5bda5');
+  box(-3.5, 0.18, 5.7, 1.4, 0.08, 13.5, '#c5bda5');
+  box(-0.6, 0.19, 0, 6, 0.08, 1.6, '#c5bda5');
   widening = true;
   // A single long cream stable, with eight bays west and seven east of its aisle.
   box(-10.65, 1.45, 0, 0.18, 2.6, 21.2, '#cac9ad');

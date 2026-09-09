@@ -18,8 +18,25 @@ test('horses keep body clearance and transfers continue through day and night', 
     for (let tick = 0; tick < 1800 * 30; tick++) {
       if (tick === 900 * 30) sim.setHour(22);
       sim.update(1 / 30);
+      assert.ok(
+        sim.horses.filter((h) => h.state === 'walk').length <= 1,
+        'reserve narrow transfers for one horse at a time',
+      );
       for (let i = 0; i < sim.horses.length; i++) {
         const a = sim.horses[i];
+        if (
+          a.state === 'walk' &&
+          a.x > -8 &&
+          a.x < -3 &&
+          a.z > 1 &&
+          a.z < 11.9
+        ) {
+          assert.equal(
+            a.x,
+            -3.5,
+            'stay on the center of the narrow outdoor connector',
+          );
+        }
         for (const b of sim.horses.slice(i + 1)) {
           assert.ok(
             bodyDistance(a, b) >= 0.8,

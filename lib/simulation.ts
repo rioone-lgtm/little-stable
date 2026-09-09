@@ -181,7 +181,8 @@ export function createSimulation(seed = 9817, initialHour = 14) {
       return false;
     destination = transfers.get(h.id)!;
     transfers.delete(h.id);
-    // Keep right: outbound uses west aisle / south apron / east connector lane.
+    // Keep right inside the stable. The narrow outdoor connector is single-file
+    // in both directions, protected by the FIFO transfer reservation above.
     const target =
       destination === 'rest'
         ? stall(h.id)
@@ -197,32 +198,32 @@ export function createSimulation(seed = 9817, initialHour = 14) {
                   { x: -8.5, z: h.z },
                   { x: -9.6, z: h.z + 1.3 },
                 ]),
-            { x: -9.6, z: 12.6 },
-            { x: -2.9, z: 12.6 },
-            { x: -2.9, z: 0.6 },
+            { x: -9.6, z: 12 },
+            { x: -3.5, z: 12 },
+            { x: -3.5, z: 0 },
           ]
         : h.zone === 'graze'
           ? [
               { x: 5, z: h.z },
               { x: 5, z: 1 },
               { x: 1.3, z: 1 },
-              { x: 0.5, z: 1 },
-              { x: 0.5, z: -0.6 },
+              { x: 0.4, z: 1 },
+              { x: 0.4, z: 0 },
             ]
           : [];
     const entry: Point[] =
       destination === 'rest'
         ? [
-            { x: -4.1, z: -0.6 },
-            { x: -4.1, z: 11.4 },
-            { x: -8.5, z: 11.4 },
+            { x: -3.5, z: 0 },
+            { x: -3.5, z: 12 },
+            { x: -8.5, z: 12 },
             { x: -8.5, z: target.z },
             target,
           ]
         : destination === 'graze'
           ? [
-              { x: 0.5, z: 0.6 },
-              { x: 0.5, z: -1 },
+              { x: 0.4, z: 0 },
+              { x: 0.4, z: -1 },
               { x: 5, z: -1 },
               { x: 5, z: target.z },
               target,
@@ -243,7 +244,7 @@ export function createSimulation(seed = 9817, initialHour = 14) {
         let remaining = dt * (1.1 + h.id * 0.025);
         while (h.route.length && remaining > 0) {
           const holding =
-            (Math.abs(h.x + 2.9) < 0.001 && Math.abs(h.z - 0.6) < 0.001) ||
+            (Math.abs(h.x + 3.5) < 0.001 && Math.abs(h.z) < 0.001) ||
             (Math.abs(h.x - 1.3) < 0.001 && Math.abs(h.z - 1) < 0.001);
           if (
             holding &&
@@ -290,7 +291,7 @@ export function createSimulation(seed = 9817, initialHour = 14) {
         const crossing = horses.some(
           (other) =>
             other.state === 'walk' &&
-            other.x > -3.1 &&
+            other.x > -3.7 &&
             other.x < 5.1 &&
             Math.abs(other.z) < 3,
         );
