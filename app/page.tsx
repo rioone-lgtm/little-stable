@@ -10,9 +10,9 @@ import {
   ArrowUpRight,
 } from 'lucide-react';
 import { Moon, Cloud, CloudRain, Snowflake, Maximize } from 'lucide-react';
-import { watchEnvironment, type Environment } from '@/lib/environment';
+import { watchEnvironment, type Environment } from '@/lib/stable/environment';
 import { Button } from '@/components/ui/button';
-import type { StableWorld } from '@/lib/world';
+import type { StableWorld } from '@/lib/stable/world';
 export default function Home() {
   const mount = useRef<HTMLDivElement>(null);
   const world = useRef<StableWorld | null>(null);
@@ -29,7 +29,7 @@ export default function Home() {
       setEnvironment(value);
       world.current?.setEnvironment(value);
     });
-    import('@/lib/world')
+    import('@/lib/stable/world')
       .then(({ createWorld }) => {
         if (disposed || !mount.current) return;
         world.current = createWorld(mount.current, setCounts, setStatus);

@@ -4,8 +4,8 @@ import {
   environmentAt,
   parseWeather,
   describeWeather,
-} from '../lib/environment.ts';
-import { createSimulation } from '../lib/simulation.ts';
+} from '../lib/stable/environment.ts';
+import { createSimulation } from '../lib/stable/simulation.ts';
 const sample = {
   current: {
     weather_code: 65,

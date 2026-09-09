@@ -1,3 +1,4 @@
+import { DEFAULT_LOCATION, type FarmLocation } from './config';
 export type WeatherKind =
   | 'clear'
   | 'cloud'
@@ -25,8 +26,24 @@ export type Environment = {
   weather: Weather | null;
   stale: boolean;
 };
-export const WEATHER_URL =
-  'https://api.open-meteo.com/v1/forecast?latitude=36.3167&longitude=139.2&current=temperature_2m,weather_code,cloud_cover,precipitation&daily=sunrise,sunset&timezone=Asia%2FTokyo&timeformat=unixtime&forecast_days=2';
+export function weatherUrl(location: FarmLocation = DEFAULT_LOCATION) {
+  const query = new URLSearchParams({
+    latitude: String(location.latitude),
+    longitude: String(location.longitude),
+    current: 'temperature_2m,weather_code,cloud_cover,precipitation',
+    daily: 'sunrise,sunset',
+    timezone: location.timezone,
+    timeformat: 'unixtime',
+    forecast_days: '2',
+  });
+  return 'https://api.open-meteo.com/v1/forecast?' + query;
+}
+export const WEATHER_URL = weatherUrl();
+export type EnvironmentOptions = {
+  initialWeather?: Weather | null;
+  polling?: boolean;
+  location?: FarmLocation;
+};
 export function describeWeather(code: number): {
   kind: WeatherKind;
   label: string;
@@ -99,11 +116,27 @@ export function environmentAt(
   now: number,
   weather: Weather | null = null,
   failed = false,
+  timezone = DEFAULT_LOCATION.timezone,
 ): Environment {
-  const jst = new Date(now + 9 * 3600000),
-    hour = jst.getUTCHours() + jst.getUTCMinutes() / 60;
-  const dayKey = (t: number) =>
-    new Date(t + 9 * 3600000).toISOString().slice(0, 10);
+  const formatter = new Intl.DateTimeFormat('en-GB', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  });
+  const parts = (t: number) =>
+    Object.fromEntries(
+      formatter.formatToParts(t).map((p) => [p.type, p.value]),
+    );
+  const local = parts(now),
+    hour = Number(local.hour) + Number(local.minute) / 60;
+  const dayKey = (t: number) => {
+    const p = parts(t);
+    return p.year + '-' + p.month + '-' + p.day;
+  };
   const i = weather?.sunrise.findIndex((t) => dayKey(t) === dayKey(now)) ?? -1;
   const rise = i >= 0 ? weather!.sunrise[i] : now + (6 - hour) * 3600000;
   const set = i >= 0 ? weather!.sunset[i] : now + (18 - hour) * 3600000;
@@ -116,31 +149,37 @@ export function environmentAt(
     hour,
     period: timePeriod(hour),
     daylight,
-    clock:
-      String(jst.getUTCHours()).padStart(2, '0') +
-      ':' +
-      String(jst.getUTCMinutes()).padStart(2, '0'),
+    clock: local.hour + ':' + local.minute,
     weather,
     stale: failed || (!!weather && now - weather.observedAt > 60 * 60000),
   };
 }
-export function watchEnvironment(onChange: (e: Environment) => void) {
-  let weather: Weather | null = null,
+export function watchEnvironment(
+  onChange: (e: Environment) => void,
+  options: EnvironmentOptions = {},
+) {
+  let weather: Weather | null = options.initialWeather ?? null,
     failed = false,
     disposed = false,
     request: AbortController | null = null,
     lastAttempt = 0;
   const emit = () => {
-    if (!disposed) onChange(environmentAt(Date.now(), weather, failed));
+    if (!disposed)
+      onChange(
+        environmentAt(Date.now(), weather, failed, options.location?.timezone),
+      );
   };
   async function refresh() {
-    if (disposed || request || document.hidden) return;
+    if (options.polling === false || disposed || request || document.hidden)
+      return;
     lastAttempt = Date.now();
     request = new AbortController();
     const active = request;
     const timeout = setTimeout(() => active.abort(), 10000);
     try {
-      const response = await fetch(WEATHER_URL, { signal: active.signal });
+      const response = await fetch(weatherUrl(options.location), {
+        signal: active.signal,
+      });
       if (!response.ok) throw new Error('Weather unavailable');
       weather = parseWeather(await response.json());
       failed = false;
@@ -161,7 +200,10 @@ export function watchEnvironment(onChange: (e: Environment) => void) {
   emit();
   void refresh();
   const clock = setInterval(emit, 30000),
-    poll = setInterval(() => void refresh(), 15 * 60000);
+    poll =
+      options.polling === false
+        ? undefined
+        : setInterval(() => void refresh(), 15 * 60000);
   document.addEventListener('visibilitychange', wake);
   return () => {
     disposed = true;

@@ -1,4 +1,11 @@
-import { blocksMove } from './traffic.ts';
+import {
+  DEFAULT_CONFIG,
+  fromStableOps,
+  stableGeometry,
+  stallPosition,
+  type StableConfig,
+} from './config';
+import { blocksMove } from './traffic';
 export type Activity = 'rest' | 'graze' | 'run';
 export type Point = { x: number; z: number };
 export type Horse = Point & {
@@ -38,18 +45,29 @@ export function trackPoint(angle: number, id = 0): Point {
   d -= Math.PI * r;
   return { x: TRACK.x - r, z: a - d };
 }
-export function stall(id: number): Point {
-  if (!Number.isInteger(id) || id < 0 || id >= STALL_CAPACITY)
-    throw new RangeError('Unknown stall');
-  return {
-    x: id < 8 ? -11.575 : -6.425,
-    z: -9.1 + (id < 8 ? id : id - 8) * 2.6,
-  };
+export function stall(
+  id: number,
+  config: StableConfig = DEFAULT_CONFIG,
+): Point {
+  return stallPosition(id, config);
 }
-export function stallAisle(id: number): Point {
-  return { x: -9, z: stall(id).z };
+export function stallAisle(
+  id: number,
+  config: StableConfig = DEFAULT_CONFIG,
+): Point {
+  return { x: -9, z: stall(id, config).z };
 }
-export function createSimulation(seed = 9817, initialHour = 14) {
+export function createSimulation(
+  seed = 9817,
+  initialHour = 14,
+  input: StableConfig = DEFAULT_CONFIG,
+) {
+  const config = fromStableOps(input);
+  const count = config.horses.length;
+  const nightStart = Math.ceil(count * 0.8);
+  const geometry = stableGeometry(config);
+  const home = (id: number) => stall(config.horses[id].stallIndex, config);
+  const west = (id: number) => home(id).x < -9;
   let hour = initialHour;
   const period = () =>
     hour < 5 || hour >= 20
@@ -61,7 +79,7 @@ export function createSimulation(seed = 9817, initialHour = 14) {
           : 'evening';
   const duration = (id: number, state: Activity) =>
     state === 'rest'
-      ? period() === 'night' && id < 8
+      ? period() === 'night' && id < nightStart
         ? 420
         : period() === 'evening'
           ? 90
@@ -69,7 +87,7 @@ export function createSimulation(seed = 9817, initialHour = 14) {
       : 20;
   const choose = (id: number): Activity => {
     const p = period(),
-      nightOwl = id >= 8;
+      nightOwl = id >= nightStart;
     const rest =
       p === 'night'
         ? nightOwl
@@ -91,37 +109,39 @@ export function createSimulation(seed = 9817, initialHour = 14) {
   };
   const pasture = (id: number): Point => ({
     x: id % 2 === 0 ? 2.8 : 7.2,
-    z: -4 + Math.floor(id / 2) * 2,
+    z: -4 + Math.floor((id % 10) / 2) * 2,
   });
-  const horses: Horse[] = Array.from({ length: 10 }, (_, id) => {
+  const horses: Horse[] = Array.from({ length: count }, (_, id) => {
     const state: Activity =
-      period() === 'night'
-        ? id < 8
-          ? 'rest'
-          : id === 8
-            ? 'graze'
-            : 'run'
-        : period() === 'morning'
-          ? id < 2
+      id >= 10
+        ? 'rest'
+        : period() === 'night'
+          ? id < nightStart
             ? 'rest'
-            : id < 5
+            : id === nightStart
               ? 'graze'
               : 'run'
-          : period() === 'evening'
-            ? id < 6
+          : period() === 'morning'
+            ? id < Math.ceil(count * 0.2)
               ? 'rest'
-              : id < 8
+              : id < Math.ceil(count * 0.5)
                 ? 'graze'
                 : 'run'
-            : id < 3
-              ? 'rest'
-              : id < 7
-                ? 'graze'
-                : 'run';
+            : period() === 'evening'
+              ? id < Math.ceil(count * 0.6)
+                ? 'rest'
+                : id < nightStart
+                  ? 'graze'
+                  : 'run'
+              : id < Math.ceil(count * 0.3)
+                ? 'rest'
+                : id < Math.ceil(count * 0.7)
+                  ? 'graze'
+                  : 'run';
     const trackAngle = Math.PI + (id % 5) * 1.1;
     const p =
       state === 'rest'
-        ? stall(id)
+        ? home(id)
         : state === 'graze'
           ? pasture(id)
           : trackPoint(trackAngle, id);
@@ -133,7 +153,7 @@ export function createSimulation(seed = 9817, initialHour = 14) {
       zone: state,
       angle:
         state === 'rest'
-          ? id < 8
+          ? west(id)
             ? Math.PI / 2
             : -Math.PI / 2
           : state === 'graze'
@@ -165,12 +185,26 @@ export function createSimulation(seed = 9817, initialHour = 14) {
       h.trackAngle = Math.PI;
       h.lapEnd = Math.PI + TAU * (1 + Math.floor(random() * 2));
     }
-    if (h.state === 'rest') h.angle = h.id < 8 ? Math.PI / 2 : -Math.PI / 2;
+    if (h.state === 'rest') h.angle = west(h.id) ? Math.PI / 2 : -Math.PI / 2;
     if (h.state === 'graze')
       h.angle = h.id % 2 === 0 ? -Math.PI / 2 : Math.PI / 2;
   };
   const transfers = new Map<number, Activity>();
   const travel = (h: Horse, destination: Activity) => {
+    // The unchanged infield has ten safe grazing positions. Share them over time.
+    if (
+      destination === 'graze' &&
+      horses.some(
+        (other) =>
+          other.id !== h.id &&
+          other.id % 10 === h.id % 10 &&
+          (other.zone === 'graze' ||
+            (other.state === 'walk' && other.destination === 'graze')),
+      )
+    ) {
+      transfers.delete(h.id);
+      return false;
+    }
     // Reserve transfers through the shared junctions. Horses waiting for a
     // transfer remain in their bay/pasture or complete another track lap.
     if (!transfers.has(h.id)) transfers.set(h.id, destination);
@@ -185,21 +219,21 @@ export function createSimulation(seed = 9817, initialHour = 14) {
     // in both directions, protected by the FIFO transfer reservation above.
     const target =
       destination === 'rest'
-        ? stall(h.id)
+        ? home(h.id)
         : destination === 'graze'
           ? pasture(h.id)
           : trackPoint(Math.PI, h.id);
     const exit: Point[] =
       h.zone === 'rest'
         ? [
-            ...(h.id < 8
+            ...(west(h.id)
               ? [{ x: -9.6, z: h.z }]
               : [
                   { x: -8.5, z: h.z },
                   { x: -9.6, z: h.z + 1.3 },
                 ]),
-            { x: -9.6, z: 12 },
-            { x: -3.5, z: 12 },
+            { x: -9.6, z: geometry.entranceZ },
+            { x: -3.5, z: geometry.entranceZ },
             { x: -3.5, z: 0 },
           ]
         : h.zone === 'graze'
@@ -215,8 +249,8 @@ export function createSimulation(seed = 9817, initialHour = 14) {
       destination === 'rest'
         ? [
             { x: -3.5, z: 0 },
-            { x: -3.5, z: 12 },
-            { x: -8.5, z: 12 },
+            { x: -3.5, z: geometry.entranceZ },
+            { x: -8.5, z: geometry.entranceZ },
             { x: -8.5, z: target.z },
             target,
           ]
